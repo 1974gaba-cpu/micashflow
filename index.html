@@ -890,12 +890,22 @@ function isCobrado(col,id,ym){return !!state.cobros[cobroKey(col,id,ym)];}
 
 // ─── CALC MONTH ────────────────────────────────────────────────────────
 
-// Para préstamos el contador r.cuotas ya refleja las cuotas reales restantes
-// Solo verificamos que el mes sea >= inicio
+// Para préstamos el contador r.cuotas refleja las cuotas restantes HOY (mes actual)
+// Para meses futuros, descontamos los meses que habrán pasado
 function prestamoCuotasEnMes(r, ym){
   const inicio = r.inicio || '2000-01';
   if(ym < inicio) return 0; // no había empezado
-  return parseInt(r.cuotas)||0;
+  const cuotasHoy = parseInt(r.cuotas)||0;
+  if(cuotasHoy <= 0) return 0;
+  const today = new Date().toISOString().slice(0,7);
+  // Calcular diferencia en meses entre ym y hoy
+  const [ty,tm] = today.split('-').map(Number);
+  const [yy,ym2] = ym.split('-').map(Number);
+  const diffMeses = (yy - ty)*12 + (ym2 - tm);
+  if(diffMeses < 0) return 0; // mes pasado, no aplica aquí
+  // Cuotas restantes en ese mes = cuotas actuales - meses que habrán pasado
+  const cuotasEnMes = cuotasHoy - diffMeses;
+  return cuotasEnMes > 0 ? 1 : 0; // devuelve 1 si aún tiene cuota en ese mes, 0 si ya terminó
 }
 
 function calcMonth(ym){
