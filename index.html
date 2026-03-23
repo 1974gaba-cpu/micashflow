@@ -202,6 +202,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
     <span style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:1px">TC USD/ARS</span>
     <div class="fx-wrap"><span>$</span><input class="fx-inp" id="tc-inp" type="number" value="1420" onchange="saveFX()"><span>ARS</span></div>
     <button class="io-btn exp" onclick="exportData()" title="Descargar JSON local">↓ Backup</button>
+    <button class="io-btn imp" onclick="document.getElementById('imp-file').click()" title="Importar JSON local">↑ Importar</button>
     <button class="io-btn imp" id="drive-btn" onclick="driveAuth()" title="Conectar Google Drive">☁ Drive</button>
     <span id="drive-status" style="font-size:10px;font-family:var(--mono);color:var(--muted);display:none"></span>
     <input type="file" id="imp-file" accept=".json" onchange="importData(event)" style="display:none">
