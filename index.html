@@ -173,12 +173,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 .empty-state{text-align:center;padding:28px;color:var(--muted);font-size:13px;font-family:var(--mono);}
 ::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
 @media(max-width:700px){.sidebar{display:none;}.sg{grid-template-columns:1fr;}}
-/* DRAG & DROP */
-.tbl tr.dragging{opacity:0.4;background:var(--accent-dim);}
-.tbl tr.drag-over{border-top:2px solid var(--accent);}
-.drag-handle{cursor:grab;color:var(--muted);font-size:14px;padding:2px 4px;user-select:none;opacity:0.5;transition:.15s;}
-.drag-handle:hover{opacity:1;color:var(--accent);}
-.drag-handle:active{cursor:grabbing;}
 </style>
 </head>
 <body>
@@ -779,6 +773,23 @@ function driveSaveDebounced(){
   driveSaveTimeout = setTimeout(()=>driveSave(), 3000); // guarda 3 seg después del último cambio
 }
 
+function checkDriveBeforeEdit(){
+  if(driveToken) return; // ya conectado, no hacer nada
+  // Mostrar toast de aviso no bloqueante
+  let t=document.getElementById('cf-drive-warn');
+  if(!t){
+    t=document.createElement('div');
+    t.id='cf-drive-warn';
+    t.style.cssText='position:fixed;bottom:22px;right:22px;background:#1a1200;border:1px solid #f59e0b;color:#f59e0b;font-family:"DM Mono",monospace;font-size:12px;padding:10px 16px;border-radius:8px;z-index:9999;display:flex;align-items:center;gap:10px;cursor:pointer;';
+    t.innerHTML='☁ Drive no conectado — los cambios no se guardarán en la nube <span style="background:#f59e0b;color:#000;border-radius:4px;padding:2px 8px;font-weight:700;margin-left:4px">Conectar</span>';
+    t.onclick=()=>{ driveAuth(); t.style.display='none'; };
+    document.body.appendChild(t);
+  }
+  t.style.display='flex';
+  clearTimeout(t._t);
+  t._t=setTimeout(()=>t.style.display='none', 6000);
+}
+
 // ─── CIERRE DE MES ─────────────────────────────────────────────────────
 
 function prevYM(ym){
@@ -964,46 +975,6 @@ function moveInv(id, dir){
   const tmp=arr[idx];arr[idx]=arr[newIdx];arr[newIdx]=tmp;
   saveState();renderAll();
 }
-
-// ─── DRAG & DROP ──────────────────────────────────────────────────────
-let _dragSrcId=null, _dragCol=null, _dragIsMonthly=false;
-
-function initDragDrop(tbodyId, col){
-  const tbody = document.getElementById(tbodyId);
-  if(!tbody) return;
-  const isMonthly = ['ingresos_espo','tarjetas','gastos_directos'].includes(col);
-  tbody.querySelectorAll('tr[data-id]').forEach(row=>{
-    row.setAttribute('draggable','true');
-    row.addEventListener('dragstart',e=>{
-      _dragSrcId=row.dataset.id;
-      _dragCol=col;
-      _dragIsMonthly=isMonthly;
-      row.classList.add('dragging');
-      e.dataTransfer.effectAllowed='move';
-    });
-    row.addEventListener('dragend',()=>{
-      row.classList.remove('dragging');
-      tbody.querySelectorAll('tr').forEach(r=>r.classList.remove('drag-over'));
-    });
-    row.addEventListener('dragover',e=>{
-      e.preventDefault();
-      e.dataTransfer.dropEffect='move';
-      tbody.querySelectorAll('tr').forEach(r=>r.classList.remove('drag-over'));
-      row.classList.add('drag-over');
-    });
-    row.addEventListener('drop',e=>{
-      e.preventDefault();
-      if(_dragSrcId===row.dataset.id) return;
-      const arr = _dragIsMonthly ? (state[_dragCol][state.currentMonth]||[]) : state[_dragCol];
-      const fromIdx = arr.findIndex(r=>r.id===_dragSrcId);
-      const toIdx = arr.findIndex(r=>r.id===row.dataset.id);
-      if(fromIdx===-1||toIdx===-1) return;
-      const [item] = arr.splice(fromIdx,1);
-      arr.splice(toIdx,0,item);
-      saveState(); renderAll();
-    });
-  });
-}
 function toggleCard(bodyId){
   const body=document.getElementById(bodyId);
   if(!body)return;
@@ -1044,6 +1015,7 @@ const FMAP={
 function addItem(col,formId,fieldIds){
   const vals=fieldIds.map(id=>document.getElementById(id).value.trim());
   if(!vals[0]){alert('Completá al menos la descripción.');return;}
+  checkDriveBeforeEdit();
   const item={id:uid()};
   FMAP[col].forEach((k,i)=>item[k]=vals[i]||'');
   // guardar total original de cuotas para el historial de cancelados
@@ -1064,6 +1036,7 @@ function addItem(col,formId,fieldIds){
 function addInversion(){
   const desc=document.getElementById('inv-desc').value.trim();
   if(!desc){alert('Completá el ticker o nombre.');return;}
+  checkDriveBeforeEdit();
   const item={
     id:uid(),
     desc,
@@ -1084,6 +1057,7 @@ function addInversion(){
 function addDA(){
   const desc=document.getElementById('da-desc').value.trim();
   if(!desc){alert('Completá la descripción.');return;}
+  checkDriveBeforeEdit();
   const item={
     id:uid(),
     desc,
@@ -1350,7 +1324,7 @@ function renderPrestamos(col,tbodyId){
       ?`<button class="btn-cobrar" onclick="abrirCobro('${col}','${r.id}')">Cobrar</button>`
       :(showMinus?`<button onclick="decrementCuotas('${col}','${r.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:1px 7px;cursor:pointer;font-family:var(--mono)">−1</button>`:'');
     const rowStyle=(c===0&&!noIniciado)||noIniciado?'opacity:0.45':'';
-    return`<tr data-id="${r.id}" style="${rowStyle}">
+    return`<tr style="${rowStyle}">
       <td>${r.desc}</td>
       <td>${curBadge(r.cur)}</td>
       <td class="mono-cell" style="${inactive?'text-decoration:line-through':''}">${fmtN(r.amt)}</td>
@@ -1358,14 +1332,12 @@ function renderPrestamos(col,tbodyId){
       <td>${r.day||'—'}</td>
       <td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td>
       <td style="white-space:nowrap">
-        <span class="drag-handle" title="Arrastrar para reordenar">⠿</span>
         ${btns}
         <button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button>
         <button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button>
       </td>
     </tr>`;
   }).join('');
-  initDragDrop(tbodyId, col);
 }
 
 // ─── RENDER CANCELADOS ─────────────────────────────────────────────────
@@ -1406,13 +1378,14 @@ function renderInversiones(){
     const bodyId='body-br-'+broker.replace(/[^a-z0-9]/gi,'-');
     const rows=items.map(r=>{
       const globalIdx=inv.indexOf(r);
-      return`<tr data-id="${r.id}">
+      return`<tr>
         <td>${r.desc}</td><td><span class="badge bac">${r.tipo||'—'}</span></td>
         <td>${curBadge(r.cur)}</td><td class="mono-cell">${fmtN(r.val)}</td>
         <td>${liqBadge(r.liq)}</td>
         <td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td>
         <td style="white-space:nowrap">
-          <span class="drag-handle" title="Arrastrar para reordenar">⠿</span>
+          <button class="btn-edit" onclick="moveInv('${r.id}',-1)" title="Subir" style="opacity:${globalIdx===0?0.2:1}">↑</button>
+          <button class="btn-edit" onclick="moveInv('${r.id}',1)" title="Bajar" style="opacity:${globalIdx===inv.length-1?0.2:1}">↓</button>
           <button class="btn-edit" onclick="openEditModal('inversiones','${r.id}')" title="Editar">✎</button>
           <button class="btn-del" onclick="delItem('inversiones','${r.id}')">×</button>
         </td></tr>`;
@@ -1425,13 +1398,9 @@ function renderInversiones(){
       </div>
       <div id="${bodyId}">
         <table class="tbl"><thead><tr><th>Ticker</th><th>Tipo</th><th>Moneda</th><th>Valor</th><th>Liquidez</th><th>Nota</th><th></th></tr></thead>
-        <tbody id="tb-inv-${broker.replace(/[^a-z0-9]/gi,'-')}">${rows}</tbody></table>
+        <tbody>${rows}</tbody></table>
       </div></div>`;
   }).join('');
-  // Init drag-drop for each broker tbody
-  Object.keys(brokers).forEach(broker=>{
-    initDragDrop('tb-inv-'+broker.replace(/[^a-z0-9]/gi,'-'), 'inversiones');
-  });
 }
 
 // ─── RENDER EFECTIVO TOTALES ────────────────────────────────────────────
@@ -1458,7 +1427,7 @@ function renderTable(tbodyId,rows,cols,col){
   const tb=document.getElementById(tbodyId);
   if(!tb)return;
   if(!rows||!rows.length){tb.innerHTML=`<tr><td colspan="${cols.length+2}" class="empty-state">Sin entradas todavía</td></tr>`;return;}
-  tb.innerHTML=rows.map((r,idx)=>`<tr data-id="${r.id}">${cols.map(c=>{
+  tb.innerHTML=rows.map((r,idx)=>`<tr>${cols.map(c=>{
     if(c==='cur')return`<td>${curBadge(r[c])}</td>`;
     if(c==='liq')return`<td>${liqBadge(r[c])}</td>`;
     if(c==='tipo')return`<td><span class="badge bac">${r[c]}</span></td>`;
@@ -1468,11 +1437,11 @@ function renderTable(tbodyId,rows,cols,col){
     return`<td>${r[c]||''}</td>`;
   }).join('')}
   <td style="white-space:nowrap">
-    <span class="drag-handle" title="Arrastrar para reordenar">⠿</span>
+    <button class="btn-edit" onclick="moveItem('${col}','${r.id}',-1)" title="Subir" style="opacity:${idx===0?0.2:1}">↑</button>
+    <button class="btn-edit" onclick="moveItem('${col}','${r.id}',1)" title="Bajar" style="opacity:${idx===rows.length-1?0.2:1}">↓</button>
     <button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button>
     <button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button>
   </td></tr>`).join('');
-  initDragDrop(tbodyId, col);
 }
 
 // ─── RENDER ALL ────────────────────────────────────────────────────────
@@ -1806,6 +1775,7 @@ function closeEditModal(){document.getElementById('edit-modal').classList.remove
 
 function saveEdit(){
   if(!_eCol||!_eId)return;
+  checkDriveBeforeEdit();
   const arr=['ingresos_espo','tarjetas','gastos_directos'].includes(_eCol)?(state[_eCol][state.currentMonth]||[]):state[_eCol];
   const item=arr.find(r=>r.id===_eId);
   if(!item)return;
