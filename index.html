@@ -32,7 +32,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 .nav-item.active{color:var(--text);border-left-color:var(--accent);background:var(--accent-dim);}
 
 /* TOPBAR */
-.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:9px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:9px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:100;}
 .fx-wrap{display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;}
 .fx-wrap span{font-size:11px;font-family:var(--mono);color:var(--muted2);}
 .fx-inp{background:none;border:none;outline:none;font-family:var(--mono);font-size:13px;color:var(--text);width:80px;}
@@ -980,7 +980,16 @@ function toggleCard(bodyId){
     if(icon) icon.style.transform=isNowHidden?'rotate(-90deg)':'rotate(0deg)';
   });
 }
-function toggleForm(id){const f=document.getElementById(id);if(f)f.style.display=f.style.display==='none'?'block':'none';}
+function toggleForm(id){
+  const f=document.getElementById(id);
+  if(!f)return;
+  const isOpening=f.style.display==='none';
+  f.style.display=isOpening?'block':'none';
+  if(isOpening){
+    const first=f.querySelector('input:not([type="hidden"]),textarea');
+    if(first)setTimeout(()=>first.focus(),50);
+  }
+}
 
 function goTab(tab,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -1260,7 +1269,7 @@ function renderDA(ym){
       </div>`;
     }
     const rowStyle=!activo?'opacity:0.35':'';
-    return`<tr style="${rowStyle}">
+    return`<tr data-id="${r.id}" style="${rowStyle}">
       <td>${r.desc}</td>
       <td style="font-size:12px;color:var(--muted2)">${r.tarjeta||'—'}</td>
       <td>${curBadge(r.cur)}</td>
@@ -1268,14 +1277,14 @@ function renderDA(ym){
       <td>${progreso}</td>
       <td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td>
       <td style="white-space:nowrap">
+        <span class="drag-handle" title="Arrastrar para reordenar">⠿</span>
         <button class="btn-edit" onclick="openEditDA('${r.id}')" title="Editar">✎</button>
         <button class="btn-del" onclick="delItem('da_fijos','${r.id}')">×</button>
       </td>
     </tr>`;
   }).join('');
+  initDragDrop('tb-da','da_fijos');
 }
-
-// ─── RENDER PRESTAMOS TABLE ────────────────────────────────────────────
 function renderPrestamos(col,tbodyId){
   const tb=document.getElementById(tbodyId);
   if(!tb)return;
@@ -1314,7 +1323,7 @@ function renderPrestamos(col,tbodyId){
       ?`<button class="btn-cobrar" onclick="abrirCobro('${col}','${r.id}')">Cobrar</button>`
       :(showMinus?`<button onclick="decrementCuotas('${col}','${r.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:1px 7px;cursor:pointer;font-family:var(--mono)">−1</button>`:'');
     const rowStyle=(c===0&&!noIniciado)||noIniciado?'opacity:0.45':'';
-    return`<tr style="${rowStyle}">
+    return`<tr data-id="${r.id}" style="${rowStyle}">
       <td>${r.desc}</td>
       <td>${curBadge(r.cur)}</td>
       <td class="mono-cell" style="${inactive?'text-decoration:line-through':''}">${fmtN(r.amt)}</td>
@@ -1322,12 +1331,14 @@ function renderPrestamos(col,tbodyId){
       <td>${r.day||'—'}</td>
       <td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td>
       <td style="white-space:nowrap">
+        <span class="drag-handle" title="Arrastrar para reordenar">⠿</span>
         ${btns}
         <button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button>
         <button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button>
       </td>
     </tr>`;
   }).join('');
+  initDragDrop(tbodyId, col);
 }
 
 // ─── RENDER CANCELADOS ─────────────────────────────────────────────────
