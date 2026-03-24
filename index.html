@@ -1866,19 +1866,24 @@ function importData(event){
       let loaded=0;
       STATE_KEYS.forEach(k=>{if(data[k]!==undefined){state[k]=data[k];loaded++;}});
       if(loaded===0){alert('Archivo sin datos reconocibles.');return;}
-      // migrar da_fijos viejos que tenían cuotas → nuevo formato si no tienen inicio
       if(state.da_fijos&&state.da_fijos.length){
         state.da_fijos.forEach(r=>{
           if(!r.inicio)r.inicio=state.currentMonth;
           if(!r.cuotas_total&&r.cuotas!==undefined){r.cuotas_total=r.cuotas;delete r.cuotas;}
         });
       }
+      // Resetear el fileId de Drive para que guarde los datos importados como archivo nuevo
+      driveFileId=null;
+      localStorage.removeItem('cf3_driveFileId');
+      lsSet('__drive_loaded', true);
       saveState();
       document.getElementById('tc-inp').value=state.fx;
       document.getElementById('nota-periodo').value=state.currentMonth;
       renderAll();
       document.getElementById('imp-file').value='';
       showToast(`✓ ${loaded} secciones importadas`);
+      // Si Drive está conectado, guardar inmediatamente con los datos nuevos
+      if(driveToken) driveSave(true);
     }catch(err){alert('Error al leer el archivo: '+err.message);}
   };
   reader.readAsText(file);
