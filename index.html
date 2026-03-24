@@ -985,6 +985,40 @@ function moveInv(id, dir){
   const tmp=arr[idx];arr[idx]=arr[newIdx];arr[newIdx]=tmp;
   saveState();renderAll();
 }
+
+// ─── DRAG & DROP ──────────────────────────────────────────────────────
+let _dragSrcId=null,_dragCol=null,_dragIsMonthly=false;
+function initDragDrop(tbodyId,col){
+  const tbody=document.getElementById(tbodyId);
+  if(!tbody)return;
+  const isMonthly=['ingresos_espo','tarjetas','gastos_directos'].includes(col);
+  tbody.querySelectorAll('tr[data-id]').forEach(row=>{
+    row.setAttribute('draggable','true');
+    row.addEventListener('dragstart',e=>{
+      _dragSrcId=row.dataset.id;_dragCol=col;_dragIsMonthly=isMonthly;
+      row.classList.add('dragging');e.dataTransfer.effectAllowed='move';
+    });
+    row.addEventListener('dragend',()=>{
+      row.classList.remove('dragging');
+      tbody.querySelectorAll('tr').forEach(r=>r.classList.remove('drag-over'));
+    });
+    row.addEventListener('dragover',e=>{
+      e.preventDefault();e.dataTransfer.dropEffect='move';
+      tbody.querySelectorAll('tr').forEach(r=>r.classList.remove('drag-over'));
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('drop',e=>{
+      e.preventDefault();
+      if(_dragSrcId===row.dataset.id)return;
+      const arr=_dragIsMonthly?(state[_dragCol][state.currentMonth]||[]):state[_dragCol];
+      const fromIdx=arr.findIndex(r=>r.id===_dragSrcId);
+      const toIdx=arr.findIndex(r=>r.id===row.dataset.id);
+      if(fromIdx===-1||toIdx===-1)return;
+      const[item]=arr.splice(fromIdx,1);arr.splice(toIdx,0,item);
+      saveState();renderAll();
+    });
+  });
+}
 function toggleCard(bodyId){
   const body=document.getElementById(bodyId);
   if(!body)return;
