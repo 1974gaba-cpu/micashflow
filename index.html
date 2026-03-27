@@ -209,7 +209,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
     <div class="card">
       <div class="card-title collapsible" onclick="toggleCard('body-if')"><span class="dot dg"></span>Ingresos fijos<span class="collapse-icon">▾</span></div>
       <div id="body-if">
-        <table class="tbl"><thead><tr><th>Descripción</th><th>Moneda</th><th>Monto</th><th>Día cobro</th><th>Válido desde</th><th>Nota</th><th></th></tr></thead><tbody id="tb-if"></tbody></table>
+        <table class="tbl"><thead><tr><th>Descripción</th><th>Moneda</th><th>Monto</th><th>Día cobro</th><th>Nota</th><th></th></tr></thead><tbody id="tb-if"></tbody></table>
         <button class="btn-toggle" onclick="toggleForm('frm-if')">+ Agregar ingreso fijo</button>
         <div class="add-form" id="frm-if" style="display:none">
           <div class="form-row">
@@ -217,9 +217,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
             <div class="fg"><label>Moneda</label><select id="if-cur"><option value="ARS">ARS</option><option value="USD">USD</option></select></div>
             <div class="fg"><label>Monto</label><input id="if-amt" type="number" placeholder="0"></div>
             <div class="fg" style="min-width:80px"><label>Día cobro</label><input id="if-day" type="number" placeholder="1-31"></div>
-            <div class="fg"><label>Válido desde</label><input id="if-desde" type="month" placeholder="Opcional"></div>
             <div class="fg" style="flex:2"><label>Nota</label><input id="if-note" placeholder="Opcional"></div>
-            <button class="btn-add" onclick="addItem('ingresos_fijos','frm-if',['if-desc','if-cur','if-amt','if-day','if-desde','if-note'])">Agregar</button>
+            <button class="btn-add" onclick="addItem('ingresos_fijos','frm-if',['if-desc','if-cur','if-amt','if-day','if-note'])">Agregar</button>
           </div>
         </div>
       </div>
@@ -687,7 +686,7 @@ function getSaldoInicialEfectivo(ym){ const prev = prevYM(ym); if(isCerrado(prev
 
 // ─── STATE ─────────────────────────────────────────────────────────────
 let state={
-  ingresos_fijos:[],ingresos_espo:{},
+  ingresos_fijos:{},ingresos_espo:{},
   gastos_fijos:[],da_fijos:[],tarjetas:{},
   inversiones:[],efectivo:[],
   gastos_directos:{},
@@ -736,19 +735,7 @@ function prestamoCuotasEnMes(r, ym){
 }
 function calcMonth(ym){
   let ia=0,iu=0,ga=0,gu=0;
-  // Ingresos fijos: si tiene "desde", aplica solo a partir de ese mes.
-  // Si hay varios con mismo desc+cur, gana el más reciente vigente.
-  const ifVigentes = (()=>{
-    const grupos = {};
-    state.ingresos_fijos.forEach(r=>{
-      const desde = r.desde || '';
-      if(desde && desde > ym) return;
-      const key = r.desc+'|'+r.cur;
-      if(!grupos[key] || (r.desde||'') > (grupos[key].desde||'')) grupos[key]=r;
-    });
-    return Object.values(grupos);
-  })();
-  ifVigentes.forEach(r=>r.cur==='ARS'?ia+=parseFloat(r.amt)||0:iu+=parseFloat(r.amt)||0);
+  (state.ingresos_fijos[ym]||[]).forEach(r=>r.cur==='ARS'?ia+=parseFloat(r.amt)||0:iu+=parseFloat(r.amt)||0);
   (state.ingresos_espo[ym]||[]).forEach(r=>r.cur==='ARS'?ia+=parseFloat(r.amt)||0:iu+=parseFloat(r.amt)||0);
   state.prestamos_out.forEach(r=>{ const cuotasEnMes = prestamoCuotasEnMes(r, ym); if(cuotasEnMes > 0 && !isCobrado('prestamos_out',r.id,ym)){ r.cur==='ARS'?ia+=parseFloat(r.amt)||0:iu+=parseFloat(r.amt)||0; } });
   state.gastos_fijos.forEach(r=>r.cur==='ARS'?ga+=parseFloat(r.amt)||0:gu+=parseFloat(r.amt)||0);
@@ -764,7 +751,7 @@ function prevMonth(){ const[y,m]=state.currentMonth.split('-').map(Number); cons
 function nextMonth(){ const[y,m]=state.currentMonth.split('-').map(Number); const d=new Date(y,m,1); state.currentMonth=d.toISOString().slice(0,7); saveState(); renderAll(); }
 function saveFX(){ state.fx=parseFloat(document.getElementById('tc-inp').value)||1420; saveState(); }
 function moveItem(col, id, dir){
-  const isMonthly = ['ingresos_espo','tarjetas','gastos_directos'].includes(col);
+  const isMonthly = ['ingresos_fijos','ingresos_espo','tarjetas','gastos_directos'].includes(col);
   const arr = isMonthly ? (state[col][state.currentMonth]||[]) : state[col];
   const idx = arr.findIndex(r=>r.id===id); if(idx===-1) return;
   const newIdx = idx+dir; if(newIdx<0||newIdx>=arr.length) return;
@@ -781,7 +768,7 @@ function moveInv(id, dir){
 let _dragSrcId=null,_dragCol=null,_dragIsMonthly=false;
 function initDragDrop(tbodyId,col){
   const tbody=document.getElementById(tbodyId); if(!tbody)return;
-  const isMonthly=['ingresos_espo','tarjetas','gastos_directos'].includes(col);
+  const isMonthly=['ingresos_fijos','ingresos_espo','tarjetas','gastos_directos'].includes(col);
   tbody.querySelectorAll('tr[data-id]').forEach(row=>{
     row.setAttribute('draggable','true');
     row.addEventListener('dragstart',e=>{ _dragSrcId=row.dataset.id;_dragCol=col;_dragIsMonthly=isMonthly; row.classList.add('dragging');e.dataTransfer.effectAllowed='move'; });
@@ -818,7 +805,7 @@ function goTab(tab,el){
 
 // ─── ADD ITEMS ─────────────────────────────────────────────────────────
 const FMAP={
-  ingresos_fijos:['desc','cur','amt','day','desde','note'],ingresos_espo:['desc','cur','amt','date','note'],
+  ingresos_fijos:['desc','cur','amt','day','note'],ingresos_espo:['desc','cur','amt','date','note'],
   gastos_fijos:['desc','cur','amt','day','note'],tarjetas:['desc','cur','amt','date','note'],
   gastos_directos:['desc','medio','cur','amt','date','note'],inversiones:['desc','broker','tipo','cur','val','liq','note'],
   efectivo:['desc','tipo','cur','amt','note'],prestamos_out:['desc','cur','amt','cuotas','day','note','inicio'],
@@ -831,7 +818,7 @@ function addItem(col,formId,fieldIds){
   const item={id:uid()};
   FMAP[col].forEach((k,i)=>item[k]=vals[i]||'');
   if(col==='prestamos_out' && item.cuotas){ item._cuotas_originales=item.cuotas; }
-  if(['ingresos_espo','tarjetas','gastos_directos'].includes(col)){
+  if(['ingresos_fijos','ingresos_espo','tarjetas','gastos_directos'].includes(col)){
     const ym=state.currentMonth; if(!state[col][ym])state[col][ym]=[]; state[col][ym].push(item);
   } else {state[col].push(item);}
   saveState(); fieldIds.forEach(id=>{document.getElementById(id).value='';}); document.getElementById(formId).style.display='none'; renderAll();
@@ -860,7 +847,7 @@ function addNota(){
 
 // ─── DELETE ────────────────────────────────────────────────────────────
 function delItem(col,id){
-  if(['ingresos_espo','tarjetas','gastos_directos'].includes(col)){ const ym=state.currentMonth; if(state[col][ym])state[col][ym]=state[col][ym].filter(x=>x.id!==id); }
+  if(['ingresos_fijos','ingresos_espo','tarjetas','gastos_directos'].includes(col)){ const ym=state.currentMonth; if(state[col][ym])state[col][ym]=state[col][ym].filter(x=>x.id!==id); }
   else {state[col]=state[col].filter(x=>x.id!==id);}
   saveState();renderAll();
 }
@@ -1017,7 +1004,6 @@ function renderTable(tbodyId,rows,cols,col){
   tb.innerHTML=rows.map((r,idx)=>`<tr>${cols.map(c=>{
     if(c==='cur')return`<td>${curBadge(r[c])}</td>`;if(c==='liq')return`<td>${liqBadge(r[c])}</td>`;
     if(c==='tipo')return`<td><span class="badge bac">${r[c]}</span></td>`;if(c==='medio')return`<td><span class="badge bb">${r[c]||'—'}</span></td>`;
-    if(c==='desde')return`<td style="font-size:11px;font-family:var(--mono);color:var(--muted)">${r[c]?mlabel(r[c]):'siempre'}</td>`;
     if(c==='amt'||c==='val')return`<td class="mono-cell">${fmtN(r[c])}</td>`;
     if(c==='note')return`<td class="note-cell" title="${(r[c]||'').replace(/"/g,'&quot;')}">${r[c]||'—'}</td>`;
     return`<td>${r[c]||''}</td>`;
@@ -1030,7 +1016,7 @@ function renderAll(){
   document.getElementById('month-lbl').textContent=mlabel(ym);
   document.getElementById('tc-inp').value=state.fx;
   document.querySelectorAll('[id^="ml-"]').forEach(el=>el.textContent=mlabel(ym));
-  renderTable('tb-if',state.ingresos_fijos,['desc','cur','amt','day','desde','note'],'ingresos_fijos');
+  renderTable('tb-if',state.ingresos_fijos[ym]||[],['desc','cur','amt','day','note'],'ingresos_fijos');
   renderTable('tb-ie',state.ingresos_espo[ym]||[],['desc','cur','amt','date','note'],'ingresos_espo');
   renderTable('tb-gf',state.gastos_fijos,['desc','cur','amt','day','note'],'gastos_fijos');
   renderDA(ym);
@@ -1251,7 +1237,7 @@ function renderResumen(){
     </div>
     <div class="card">
       <div class="card-title"><span class="dot dac"></span>Detalle del flujo ${cerrado?'<span style="font-size:10px;color:var(--green);font-family:var(--mono);margin-left:6px">· datos del snapshot</span>':''}</div>
-      <div class="brow"><span class="blabel">Ingresos fijos</span><span class="bval">USD ${fmtN(sum(state.ingresos_fijos,'USD'))} / ARS ${fmtN(sum(state.ingresos_fijos,'ARS'))}</span></div>
+      <div class="brow"><span class="blabel">Ingresos fijos</span><span class="bval">USD ${fmtN(sum(state.ingresos_fijos[ym]||[],'USD'))} / ARS ${fmtN(sum(state.ingresos_fijos[ym]||[],'ARS'))}</span></div>
       <div class="brow"><span class="blabel">Ingresos esporádicos</span><span class="bval">USD ${fmtN(sum(ie,'USD'))} / ARS ${fmtN(sum(ie,'ARS'))}</span></div>
       <div class="brow"><span class="blabel">Cuotas pendientes de cobro</span><span class="bval">USD ${fmtN(pendOut.filter(r=>r.cur==='USD').reduce((a,r)=>a+(parseFloat(r.amt)||0),0))} / ARS ${fmtN(pendOut.filter(r=>r.cur==='ARS').reduce((a,r)=>a+(parseFloat(r.amt)||0),0))}</span></div>
       ${cobradosEste.length?`<div class="brow"><span class="blabel" style="color:var(--green)">✓ Ya cobrados y acreditados</span><span class="bval" style="color:var(--green)">USD ${fmtN(cobradosUSD)} / ARS ${fmtN(cobradosARS)}</span></div>`:''}
@@ -1321,7 +1307,7 @@ function renderNotas(){
 
 // ─── EDIT MODAL ────────────────────────────────────────────────────────
 const FDEFS={
-  ingresos_fijos:[{k:'desc',l:'Descripción',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'day',l:'Día cobro',t:'number'},{k:'desde',l:'Válido desde',t:'month'},{k:'note',l:'Nota',t:'text'}],
+  ingresos_fijos:[{k:'desc',l:'Descripción',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'day',l:'Día cobro',t:'number'},{k:'note',l:'Nota',t:'text'}],
   ingresos_espo:[{k:'desc',l:'Descripción',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'date',l:'Fecha',t:'date'},{k:'note',l:'Nota',t:'text'}],
   gastos_fijos:[{k:'desc',l:'Descripción',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'day',l:'Día vto.',t:'number'},{k:'note',l:'Nota',t:'text'}],
   tarjetas:[{k:'desc',l:'Tarjeta',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'date',l:'Fecha consumo',t:'date'},{k:'note',l:'Nota',t:'text'}],
@@ -1336,7 +1322,7 @@ const CLBLS={ingresos_fijos:'Ingreso fijo',ingresos_espo:'Ingreso esporádico',g
 let _eCol=null,_eId=null;
 function openEditDA(id){openEditModal('da_fijos',id);}
 function openEditModal(col,id){
-  const arr=['ingresos_espo','tarjetas','gastos_directos'].includes(col)?(state[col][state.currentMonth]||[]):state[col];
+  const arr=['ingresos_fijos','ingresos_espo','tarjetas','gastos_directos'].includes(col)?(state[col][state.currentMonth]||[]):state[col];
   const item=arr.find(r=>r.id===id); if(!item)return;
   _eCol=col;_eId=id;
   document.getElementById('edit-col-lbl').textContent=CLBLS[col]||col;
@@ -1352,7 +1338,7 @@ function openEditModal(col,id){
 function closeEditModal(){document.getElementById('edit-modal').classList.remove('show');_eCol=null;_eId=null;}
 function saveEdit(){
   if(!_eCol||!_eId)return;
-  const arr=['ingresos_espo','tarjetas','gastos_directos'].includes(_eCol)?(state[_eCol][state.currentMonth]||[]):state[_eCol];
+  const arr=['ingresos_fijos','ingresos_espo','tarjetas','gastos_directos'].includes(_eCol)?(state[_eCol][state.currentMonth]||[]):state[_eCol];
   const item=arr.find(r=>r.id===_eId); if(!item)return;
   (FDEFS[_eCol]||[]).forEach(f=>{const el=document.getElementById('mf-'+f.k);if(el)item[f.k]=el.value;});
   saveState();closeEditModal();renderAll();showToast('✓ Cambios guardados');
@@ -1377,6 +1363,13 @@ function importData(event){
       if(loaded===0){alert('Archivo sin datos reconocibles.');return;}
       if(state.da_fijos&&state.da_fijos.length){ state.da_fijos.forEach(r=>{ if(!r.inicio)r.inicio=state.currentMonth; if(!r.cuotas_total&&r.cuotas!==undefined){r.cuotas_total=r.cuotas;delete r.cuotas;} }); }
       if(!state.seguros_capitalizacion) state.seguros_capitalizacion=[];
+      // migrar ingresos_fijos de array a objeto mensual si viene del formato viejo
+      if(Array.isArray(state.ingresos_fijos)){
+        const ym=state.currentMonth;
+        const arr=state.ingresos_fijos;
+        state.ingresos_fijos={};
+        state.ingresos_fijos[ym]=arr;
+      }
       saveState(); document.getElementById('tc-inp').value=state.fx; document.getElementById('nota-periodo').value=state.currentMonth;
       renderAll(); document.getElementById('imp-file').value=''; showToast(`✓ ${loaded} secciones importadas`);
     }catch(err){alert('Error al leer el archivo: '+err.message);}
