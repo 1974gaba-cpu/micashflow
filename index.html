@@ -1045,6 +1045,8 @@ function renderAll(){
   // Renderizar seguros solo si la tab está activa (evitar trabajo innecesario)
   if(document.getElementById('page-seguros').classList.contains('active')) renderSeguros();
   if(document.getElementById('page-retiro').classList.contains('active')) renderRetiro();
+  if(document.getElementById('page-resumen').classList.contains('active')) renderResumen();
+  if(document.getElementById('page-historial').classList.contains('active')) renderHistorial();
 }
 
 // ─── SEGUROS CON CAPITALIZACIÓN ────────────────────────────────────────
