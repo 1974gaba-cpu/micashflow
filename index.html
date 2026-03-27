@@ -177,6 +177,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
   <div class="nav-section">Patrimonio</div>
   <div class="nav-item" onclick="goTab('inversiones',this)"><span>◆</span> Inversiones</div>
   <div class="nav-item" onclick="goTab('seguros',this)"><span>🛡</span> Seguros</div>
+  <div class="nav-item" onclick="goTab('retiro',this)"><span>⏳</span> Retiro / Jubilación</div>
   <div class="nav-item" onclick="goTab('efectivo',this)"><span>$</span> Efvo. · Billeteras & Bancos</div>
   <div class="nav-item" onclick="goTab('prestamos',this)"><span>⇄</span> Préstamos privados</div>
   <div class="nav-section">Análisis</div>
@@ -357,6 +358,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
     </div>
     <div id="seg-totales" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px"></div>
     <div id="seg-cards-container"></div>
+  </div>
+
+  <!-- RETIRO / JUBILACIÓN -->
+  <div class="page" id="page-retiro">
+    <div class="ph">
+      <div class="ph-title">Retiro / Jubilación</div>
+      <div class="ph-sub">Fondo acumulado hasta los 65 años — informativo, no disponible</div>
+    </div>
+    <div id="retiro-content"></div>
   </div>
 
   <!-- EFECTIVO -->
@@ -696,9 +706,10 @@ let state={
   cierres:{},
   notas:[],
   seguros_capitalizacion:[],
+  retiro_jubilacion:{saldo:2882166.65, fecha_snapshot:'2026-03-01', edad_cobro:65, prima_mensual_ars:76008, dia_debito:13},
   fx:1420,currentMonth:new Date().toISOString().slice(0,7)
 };
-const STATE_KEYS=['ingresos_fijos','ingresos_espo','gastos_fijos','da_fijos','tarjetas','gastos_directos','inversiones','efectivo','prestamos_out','prestamos_in','prestamos_cancelados','cobros','cierres','notas','seguros_capitalizacion','fx','currentMonth'];
+const STATE_KEYS=['ingresos_fijos','ingresos_espo','gastos_fijos','da_fijos','tarjetas','gastos_directos','inversiones','efectivo','prestamos_out','prestamos_in','prestamos_cancelados','cobros','cierres','notas','seguros_capitalizacion','retiro_jubilacion','fx','currentMonth'];
 function saveState(){ STATE_KEYS.forEach(k=>lsSet(k,state[k])); driveSaveDebounced(); }
 
 // ─── DA HELPERS ────────────────────────────────────────────────────────
@@ -802,6 +813,7 @@ function goTab(tab,el){
   if(tab==='historial')renderHistorial();
   if(tab==='notas')renderNotas();
   if(tab==='seguros')renderSeguros();
+  if(tab==='retiro')renderRetiro();
 }
 
 // ─── ADD ITEMS ─────────────────────────────────────────────────────────
@@ -1032,6 +1044,7 @@ function renderAll(){
   renderAlerts();
   // Renderizar seguros solo si la tab está activa (evitar trabajo innecesario)
   if(document.getElementById('page-seguros').classList.contains('active')) renderSeguros();
+  if(document.getElementById('page-retiro').classList.contains('active')) renderRetiro();
 }
 
 // ─── SEGUROS CON CAPITALIZACIÓN ────────────────────────────────────────
@@ -1182,6 +1195,99 @@ function saveSegUpdate(id){
   showToast(`✓ Saldo actualizado — ${seg.compania}`);
 }
 
+// ─── RENDER RETIRO ─────────────────────────────────────────────────────
+function renderRetiro(){
+  const container = document.getElementById('retiro-content');
+  if(!container) return;
+  const r = state.retiro_jubilacion || {};
+  const saldo = parseFloat(r.saldo)||0;
+  const fx = state.fx||1420;
+  const saldoUSD = saldo/fx;
+  const nacimiento = new Date(1974,11,15); // 15/12/1974
+  const hoy = new Date();
+  const edadActual = Math.floor((hoy - nacimiento)/(365.25*24*3600*1000));
+  const aniosRestantes = Math.max(0, (r.edad_cobro||65) - edadActual);
+  const fechaCobro = new Date(nacimiento.getFullYear()+(r.edad_cobro||65), nacimiento.getMonth(), nacimiento.getDate());
+  const pct = Math.round((edadActual/(r.edad_cobro||65))*100);
+  const snap = r.fecha_snapshot ? new Date(r.fecha_snapshot).toLocaleDateString('es-AR') : '—';
+
+  container.innerHTML = `
+    <div style="background:#0a1628;border:1px solid var(--blue);border-radius:16px;padding:22px 26px;margin-bottom:16px">
+      <div style="font-size:10px;font-family:var(--mono);color:var(--blue);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">⏳ PREVENCIÓN RETIRO — FONDO ACUMULADO</div>
+      <div style="font-family:var(--mono);font-size:36px;font-weight:700;color:#60a5fa">ARS ${fmtN(saldo)}</div>
+      <div style="font-size:12px;font-family:var(--mono);color:var(--muted);margin-top:4px">≈ USD ${fmtN(saldoUSD)} · snapshot al ${snap}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px">
+        <div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Edad actual</div>
+        <div style="font-family:var(--mono);font-size:22px;color:var(--text)">${edadActual} años</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px">
+        <div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Edad de cobro</div>
+        <div style="font-family:var(--mono);font-size:22px;color:var(--amber)">${r.edad_cobro||65} años</div>
+        <div style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:3px">${fechaCobro.toLocaleDateString('es-AR')}</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px">
+        <div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Años restantes</div>
+        <div style="font-family:var(--mono);font-size:22px;color:var(--red)">${aniosRestantes} años</div>
+      </div>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:11px;font-family:var(--mono);color:var(--muted)">Progreso hacia la jubilación</span>
+        <span style="font-size:11px;font-family:var(--mono);color:var(--blue)">${pct}%</span>
+      </div>
+      <div style="height:8px;background:var(--border2);border-radius:4px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:var(--blue);border-radius:4px;transition:.3s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px">
+        <span style="font-size:10px;font-family:var(--mono);color:var(--muted)">Nacimiento: 15/12/1974</span>
+        <span style="font-size:10px;font-family:var(--mono);color:var(--muted)">Cobro: ${fechaCobro.toLocaleDateString('es-AR')}</span>
+      </div>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Prima mensual</div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:13px;color:var(--muted2)">Débito automático · día ${r.dia_debito||13}</span>
+        <span style="font-family:var(--mono);font-size:15px;color:var(--text)">ARS ${fmtN(r.prima_mensual_ars||0)}</span>
+      </div>
+    </div>
+
+    <div style="background:#1a1200;border:1px solid #92400e;border-radius:10px;padding:14px 18px;margin-bottom:16px">
+      <div style="font-size:11px;color:var(--amber);font-weight:700;margin-bottom:4px">⚠ Fondo no disponible antes de jubilación</div>
+      <div style="font-size:12px;color:var(--muted2);font-family:var(--mono)">Este fondo no se incluye en el patrimonio operativo ni en el resumen mensual. Es informativo.</div>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Actualizar saldo</div>
+      <div style="display:flex;gap:10px;align-items:flex-end">
+        <div style="flex:1"><label style="font-size:10px;font-family:var(--mono);color:var(--muted);display:block;margin-bottom:4px">SALDO ARS</label>
+          <input id="retiro-saldo" type="number" value="${saldo}" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;color:var(--text);font-family:var(--mono)"></div>
+        <div style="flex:1"><label style="font-size:10px;font-family:var(--mono);color:var(--muted);display:block;margin-bottom:4px">FECHA SNAPSHOT</label>
+          <input id="retiro-fecha" type="date" value="${r.fecha_snapshot||''}" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;color:var(--text);font-family:var(--mono)"></div>
+        <button onclick="actualizarRetiro()" style="background:var(--blue);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:12px;font-family:var(--sans);font-weight:700;cursor:pointer;white-space:nowrap">↺ Actualizar</button>
+      </div>
+    </div>`;
+}
+
+function actualizarRetiro(){
+  const saldo = parseFloat(document.getElementById('retiro-saldo').value);
+  const fecha = document.getElementById('retiro-fecha').value;
+  if(isNaN(saldo)||saldo<0){alert('Ingresá un saldo válido.');return;}
+  if(!state.retiro_jubilacion) state.retiro_jubilacion={};
+  state.retiro_jubilacion.saldo = saldo;
+  if(fecha) state.retiro_jubilacion.fecha_snapshot = fecha;
+  // Sincronizar con inversiones si existe
+  const inv = state.inversiones.find(r=>r.desc==='Prevención Retiro');
+  if(inv) inv.val = String(saldo);
+  saveState();
+  renderRetiro();
+  showToast('✓ Saldo de retiro actualizado');
+}
+
 // ─── RESUMEN ───────────────────────────────────────────────────────────
 function renderResumen(){
   const ym=state.currentMonth;
@@ -1189,7 +1295,9 @@ function renderResumen(){
   const fx=state.fx; const cerrado=isCerrado(ym); const prevMes=prevYM(ym); const prevCerrado=isCerrado(prevMes);
   const{ing_ars,ing_usd,gas_ars,gas_usd,saldo_ars,saldo_usd,neto_usd}=calcMonth(ym);
   const invMes=getInversionesMes(ym);
-  let inv_usd=0; invMes.forEach(r=>inv_usd+=toUSD(parseFloat(r.val)||0,r.cur));
+  // Excluir Prevención Retiro del patrimonio operativo — va a su propia sección
+  let inv_usd=0; invMes.filter(r=>r.desc!=='Prevención Retiro').forEach(r=>inv_usd+=toUSD(parseFloat(r.val)||0,r.cur));
+  const retiro_usd = toUSD(parseFloat((state.retiro_jubilacion||{}).saldo)||0,'ARS');
   const {ef_ars,ef_usd}=getEfectivoMes(ym);
   const saldoInicial=getSaldoInicialEfectivo(ym);
   const liqOrd={'Inmediata':1,'Corto':2,'Medio':3,'Largo':4};
@@ -1248,9 +1356,10 @@ function renderResumen(){
       <div class="brow"><span class="blabel">Gastos directos (efec/billetera/transf.)</span><span class="bval" style="color:var(--red)">USD ${fmtN(sum(gd,'USD'))} / ARS ${fmtN(sum(gd,'ARS'))}</span></div>
       <div class="brow" style="border-top:1px solid var(--border2);margin-top:4px"><span class="blabel" style="color:var(--text)">Inversiones (Cocos & brokers)</span><span class="bval" style="color:var(--accent)">≈ USD ${fmtN(inv_usd)}</span></div>
       <div class="brow"><span class="blabel" style="color:var(--text)">Seguros con capitalización 🛡</span><span class="bval" style="color:var(--accent)">≈ USD ${fmtN(seg_usd_equiv)}</span></div>
+      <div class="brow"><span class="blabel" style="color:var(--muted2)">⏳ Retiro/Jubilación <span style="font-size:10px;font-family:var(--mono);opacity:.7">(bloqueado hasta los 65)</span></span><span class="bval" style="color:#60a5fa">≈ USD ${fmtN(retiro_usd)}</span></div>
       <div class="brow"><span class="blabel" style="color:var(--text)">Efectivo & billeteras</span><span class="bval" style="color:var(--green)">USD ${fmtN(ef_usd)} / ARS ${fmtN(ef_ars)}</span></div>
       ${saldoInicial?`<div class="brow"><span class="blabel" style="color:var(--muted2)">↳ Saldo inicial heredado de ${mlabel(prevMes)}</span><span class="bval" style="color:var(--muted2)">USD ${fmtN(saldoInicial.ef_usd)} / ARS ${fmtN(saldoInicial.ef_ars)}</span></div>`:''}
-      <div class="brow" style="font-weight:600"><span class="blabel" style="color:var(--text)">Patrimonio total estimado</span><span class="bval" style="color:var(--accent)">≈ USD ${fmtN(inv_usd+ef_usd+ef_ars/fx+seg_usd_equiv)}</span></div>
+      <div class="brow" style="font-weight:600"><span class="blabel" style="color:var(--text)">Patrimonio operativo estimado</span><span class="bval" style="color:var(--accent)">≈ USD ${fmtN(inv_usd+ef_usd+ef_ars/fx+seg_usd_equiv)}</span></div>
     </div>
     ${neto_usd>=0?`<div class="reinvest-box"><h4>✦ Capital disponible para reinvertir</h4><p>Sobrante estimado: <strong>USD ${fmtN(Math.abs(saldo_usd))} + ARS ${fmtN(Math.abs(saldo_ars))}</strong> (≈ USD ${fmtN(Math.abs(neto_usd))} al TC ${fmtN(fx)}).</p></div>`:`<div class="rescue-box"><h4>⚠ Análisis de rescate sugerido</h4><p style="font-size:12px;color:var(--muted2);margin-bottom:9px">Faltante estimado: USD ${fmtN(Math.abs(neto_usd))}. Inversiones ordenadas por liquidez:</p>${rescue.length?rescue.slice(0,5).map(r=>`<div class="rescue-item"><span>${r.name} — ${liqBadge(r.liq)}</span><span style="font-family:var(--mono);color:var(--muted2)">USD ${fmtN(r.val)}</span></div>`).join(''):'<div style="color:var(--muted);font-size:12px;font-family:var(--mono)">Cargá tus inversiones para ver sugerencias.</div>'}</div>`}
     <div style="margin-top:18px">
