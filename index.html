@@ -726,9 +726,9 @@ function prestamoCuotasEnMes(r, ym){
   if(ym < inicio) return 0;
   const cuotasHoy = parseInt(r.cuotas)||0;
   if(cuotasHoy <= 0) return 0;
-  const [ty,tm] = _TODAY_YM.split('-').map(Number);
+  const [iy,im] = inicio.split('-').map(Number);
   const [yy,ym2] = ym.split('-').map(Number);
-  const diffMeses = (yy - ty)*12 + (ym2 - tm);
+  const diffMeses = (yy - iy)*12 + (ym2 - im);
   if(diffMeses <= 0) return cuotasHoy;
   const restantes = cuotasHoy - diffMeses;
   return restantes > 0 ? restantes : 0;
