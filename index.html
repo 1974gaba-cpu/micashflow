@@ -722,13 +722,14 @@ function isCobrado(col,id,ym){return !!state.cobros[cobroKey(col,id,ym)];}
 // ─── CALC MONTH ────────────────────────────────────────────────────────
 const _TODAY_YM = new Date().toISOString().slice(0,7);
 function prestamoCuotasEnMes(r, ym){
-  const inicio = r.inicio || '2000-01';
-  if(ym < inicio) return 0;
+  const inicio = r.inicio || null;
+  if(inicio && ym < inicio) return 0;
   const cuotasHoy = parseInt(r.cuotas)||0;
   if(cuotasHoy <= 0) return 0;
-  const [iy,im] = inicio.split('-').map(Number);
+  const ref = inicio || _TODAY_YM;
+  const [ry,rm] = ref.split('-').map(Number);
   const [yy,ym2] = ym.split('-').map(Number);
-  const diffMeses = (yy - iy)*12 + (ym2 - im);
+  const diffMeses = (yy - ry)*12 + (ym2 - rm);
   if(diffMeses <= 0) return cuotasHoy;
   const restantes = cuotasHoy - diffMeses;
   return restantes > 0 ? restantes : 0;
