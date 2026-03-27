@@ -1325,9 +1325,6 @@ function renderResumen(){
   let pasivo_usd=0,pasivo_ars=0;
   (state.prestamos_in||[]).forEach(r=>{const c=parseInt(r.cuotas)||0;if(c>0){const t=(parseFloat(r.amt)||0)*c;r.cur==='USD'?pasivo_usd+=t:pasivo_ars+=t;}});
   const pasivo_usd_equiv=pasivo_usd+pasivo_ars/fx;
-  const patrimonioActual=inv_usd+ef_usd+ef_ars/fx+seg_usd_equiv;
-  const patrimonioProyectado=patrimonioActual+totalFutUSD+totalFutARS/fx-pasivo_usd_equiv;
-  const pasivo_html_proj=pasivo_usd_equiv>0?'<div style="font-size:11px;color:var(--muted2);font-family:var(--mono)">− Deudas a pagar: <span style="color:var(--red)">USD '+fmtN(pasivo_usd_equiv)+'</span></div>':'';
   const today=new Date().toISOString().slice(0,7); const esMesActual=ym===today;
 
   // Seguros: calcular total USD equiv para mostrar en patrimonio
@@ -1335,6 +1332,9 @@ function renderResumen(){
   let seg_usd = 0, seg_ars = 0;
   seguros.forEach(s=>{ if(s.moneda_fondo==='USD') seg_usd+=parseFloat(s.fondo_saldo)||0; else seg_ars+=parseFloat(s.fondo_saldo)||0; });
   const seg_usd_equiv = seg_usd + seg_ars/fx;
+  const patrimonioActual=inv_usd+ef_usd+ef_ars/fx+seg_usd_equiv;
+  const patrimonioProyectado=patrimonioActual+totalFutUSD+totalFutARS/fx-pasivo_usd_equiv;
+  const pasivo_html_proj=pasivo_usd_equiv>0?'<div style="font-size:11px;color:var(--muted2);font-family:var(--mono)">− Deudas a pagar: <span style="color:var(--red)">USD '+fmtN(pasivo_usd_equiv)+'</span></div>':'';
 
   const avisoNoCerrado=esMesActual&&!prevCerrado?`<div style="background:#1a1200;border:1px solid #92400e;border-radius:var(--r);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px"><span style="font-size:18px">⚠️</span><div><div style="font-size:12px;font-weight:700;color:var(--amber);letter-spacing:.5px">MES ANTERIOR SIN CERRAR</div><div style="font-size:12px;color:var(--muted2);margin-top:3px">${mlabel(prevMes)} no fue cerrado. Los saldos históricos pueden ser inexactos.<button onclick="cerrarMes('${prevMes}')" style="margin-left:8px;background:var(--amber);color:#000;border:none;border-radius:4px;padding:2px 10px;font-size:11px;font-family:var(--mono);cursor:pointer">Cerrar ahora</button></div></div></div>`:'';
   const cierreInfo=cerrado?`<div style="background:var(--green-dim);border:1px solid var(--green);border-radius:var(--r);padding:10px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center"><div style="display:flex;align-items:center;gap:8px"><span style="color:var(--green);font-size:16px">✓</span><div><div style="font-size:12px;font-weight:700;color:var(--green)">MES CERRADO</div><div style="font-size:11px;color:var(--muted);font-family:var(--mono)">Snapshot guardado el ${new Date(state.cierres[ym].cerradoEn).toLocaleDateString('es-AR')}</div></div></div><button onclick="cerrarMes('${ym}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:11px;font-family:var(--mono);color:var(--muted2);cursor:pointer">Actualizar snapshot</button></div>`:'';
