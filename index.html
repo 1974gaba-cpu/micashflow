@@ -194,6 +194,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
     <button class="io-btn exp" onclick="exportData()" title="Descargar JSON local">↓ Backup</button>
     <button class="io-btn imp" onclick="document.getElementById('imp-file').click()" title="Importar JSON local">↑ Importar</button>
     <button class="io-btn imp" id="drive-btn" onclick="driveAuth()" title="Conectar Google Drive">☁ Drive</button>
+    <button class="io-btn" id="drive-refresh-btn" onclick="driveRefresh()" title="Traer datos actualizados del Drive" style="display:none;color:var(--accent)">&#x1F504; Drive</button>
     <span id="drive-status" style="font-size:10px;font-family:var(--mono);color:var(--muted);display:none"></span>
     <input type="file" id="imp-file" accept=".json" onchange="importData(event)" style="display:none">
     <div class="month-nav">
@@ -613,6 +614,7 @@ function driveAuth(){
       localStorage.setItem('cf3_driveToken', driveToken);
       document.getElementById('drive-btn').textContent = '☁ Conectado';
       document.getElementById('drive-btn').style.color = 'var(--green)';
+      document.getElementById('drive-refresh-btn').style.display = 'inline-flex';
       setDriveStatus('Cargando...', 'var(--muted)');
       startTokenCountdown(resp.expires_in || 3600);
       await driveLoadOrCreate();
@@ -664,6 +666,11 @@ async function driveSave(force=false){
     setDriveStatus('✓ Guardado', '#2ecc71');
     setTimeout(()=>setDriveStatus('☁ Activo','#2ecc71'), 2000);
   } catch(err) { setDriveStatus('Error al guardar: '+err.message, 'var(--red)'); }
+}
+async function driveRefresh(){
+  if(!driveToken){ showToast('⚠ Conectá Drive primero'); return; }
+  showToast('🔄 Trayendo datos del Drive...');
+  await driveLoadOrCreate();
 }
 function driveSaveDebounced(){ if(!driveToken) return; clearTimeout(driveSaveTimeout); driveSaveTimeout = setTimeout(()=>driveSave(), 3000); }
 function checkDriveBeforeEdit(){
