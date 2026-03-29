@@ -571,7 +571,8 @@ function catBadge(c){const m={'Inversión':'bb','Gasto':'br','Ingreso':'bg','Ale
 // ─── STORAGE ───────────────────────────────────────────────────────────
 function lsGet(k){try{const v=localStorage.getItem('cf2_'+k);return v?JSON.parse(v):null;}catch(e){return null;}}
 function lsSet(k,v){try{localStorage.setItem('cf2_'+k,JSON.stringify(v));}catch(e){}}
-function saveStateLocal(){STATE_KEYS.forEach(k=>lsSet(k,state[k]));}
+function saveStateLocal(){state._savedAt=new Date().toISOString();STATE_KEYS.forEach(k=>lsSet(k,state[k]));lsSet('_savedAt',state._savedAt);}
+
 
 // ─── GOOGLE DRIVE SYNC ─────────────────────────────────────────────────
 const DRIVE_CLIENT_ID = '27553125771-382is8pb6lvoqpuaj38tf6v6pdev8gdq.apps.googleusercontent.com';
@@ -627,9 +628,25 @@ async function driveLoadOrCreate(){
     try {
       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, { headers:{ Authorization: 'Bearer '+driveToken } });
       if(res.ok){
-        const data = await res.json();
+        const driveData = await res.json();
+        const driveDate = driveData.savedAt ? new Date(driveData.savedAt) : new Date(0);
+        const localDate = state._savedAt ? new Date(state._savedAt) : new Date(0);
+        const diffMins = (localDate - driveDate) / 60000;
+
+        if(diffMins > 1){
+          // Local es más nuevo — preguntar
+          const msg = `📅 Tus datos locales (${localDate.toLocaleString('es-AR')}) son más nuevos que Drive (${driveDate.toLocaleString('es-AR')}).\n\n¿Qué querés usar?`;
+          const useLocal = confirm(msg + '\n\nOK = Mantener datos locales y subir a Drive\nCancelar = Traer datos del Drive');
+          if(useLocal){
+            await driveSave(true);
+            setDriveStatus('✓ Datos locales subidos a Drive', '#2ecc71');
+            showToast('✓ Datos locales guardados en Drive');
+            return;
+          }
+        }
+        // Drive es más nuevo o el usuario eligió Drive
         let loaded = 0;
-        STATE_KEYS.forEach(k=>{ if(data[k]!==undefined){ state[k]=data[k]; loaded++; } });
+        STATE_KEYS.forEach(k=>{ if(driveData[k]!==undefined){ state[k]=driveData[k]; loaded++; } });
         lsSet('__drive_loaded', true); saveStateLocal(); renderAll();
         setDriveStatus('✓ Sincronizado', '#2ecc71');
         showToast(`☁ Datos cargados desde Drive (${loaded} secciones)`); return;
@@ -717,7 +734,7 @@ let state={
   fx:1420,currentMonth:new Date().toISOString().slice(0,7)
 };
 const STATE_KEYS=['ingresos_fijos','ingresos_espo','gastos_fijos','da_fijos','tarjetas','gastos_directos','inversiones','efectivo','prestamos_out','prestamos_in','prestamos_cancelados','cobros','cierres','notas','seguros_capitalizacion','retiro_jubilacion','fx','currentMonth'];
-function saveState(){ STATE_KEYS.forEach(k=>lsSet(k,state[k])); driveSaveDebounced(); }
+function saveState(){ state._savedAt=new Date().toISOString(); STATE_KEYS.forEach(k=>lsSet(k,state[k])); lsSet('_savedAt',state._savedAt); driveSaveDebounced(); }
 
 // ─── DA HELPERS ────────────────────────────────────────────────────────
 function daCuotaActual(item, ym){
@@ -1524,7 +1541,7 @@ document.addEventListener('DOMContentLoaded',function(){
   saveStateLocal();
 
   const localLoaded = lsGet('__drive_loaded');
-  if(localLoaded){ STATE_KEYS.forEach(k=>{ const v=lsGet(k); if(v!==null) state[k]=v; }); }
+  if(localLoaded){ STATE_KEYS.forEach(k=>{ const v=lsGet(k); if(v!==null) state[k]=v; }); const savedAt=lsGet('_savedAt'); if(savedAt) state._savedAt=savedAt; }
   if(!state.seguros_capitalizacion) state.seguros_capitalizacion=[];
 
   document.getElementById('tc-inp').value=state.fx;
