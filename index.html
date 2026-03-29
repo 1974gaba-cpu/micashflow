@@ -687,8 +687,25 @@ async function driveSave(force=false){
 }
 async function driveRefresh(){
   if(!driveToken){ showToast('⚠ Conectá Drive primero'); return; }
+  if(!driveFileId){ showToast('⚠ No hay archivo de Drive vinculado'); return; }
   showToast('🔄 Trayendo datos del Drive...');
-  await driveLoadOrCreate();
+  try {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, { headers:{ Authorization: 'Bearer '+driveToken } });
+    if(res.ok){
+      const driveData = await res.json();
+      let loaded = 0;
+      STATE_KEYS.forEach(k=>{ if(driveData[k]!==undefined){ state[k]=driveData[k]; loaded++; } });
+      state._savedAt = driveData.savedAt || new Date().toISOString();
+      lsSet('_savedAt', state._savedAt);
+      saveStateLocal(); renderAll();
+      setDriveStatus('✓ Sincronizado', '#2ecc71');
+      showToast(`☁ Datos traídos del Drive (${loaded} secciones)`);
+    } else {
+      showToast('⚠ Error al traer datos del Drive');
+    }
+  } catch(e) {
+    showToast('⚠ Error de conexión con Drive');
+  }
 }
 function clearLocalCache(){
   if(!confirm('⚠ Esto borra todos los datos locales de este dispositivo y trae los datos del Drive.\n\n¿Seguro?')) return;
