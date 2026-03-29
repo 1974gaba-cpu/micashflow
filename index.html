@@ -194,6 +194,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
     <button class="io-btn exp" onclick="exportData()" title="Descargar JSON local">↓ Backup</button>
     <button class="io-btn imp" onclick="document.getElementById('imp-file').click()" title="Importar JSON local">↑ Importar</button>
     <button class="io-btn imp" id="drive-btn" onclick="driveAuth()" title="Conectar Google Drive">☁ Drive</button>
+    <button class="io-btn" onclick="clearLocalCache()" title="Limpiar caché local y traer datos del Drive" style="color:var(--red)">🗑 Caché</button>
     <button class="io-btn" id="drive-refresh-btn" onclick="driveRefresh()" title="Traer datos actualizados del Drive" style="display:none;color:var(--accent)">&#x1F504; Drive</button>
     <span id="drive-status" style="font-size:10px;font-family:var(--mono);color:var(--muted);display:none"></span>
     <input type="file" id="imp-file" accept=".json" onchange="importData(event)" style="display:none">
@@ -635,7 +636,7 @@ async function driveLoadOrCreate(){
 
         if(diffMins > 1){
           // Local es más nuevo — preguntar
-          const msg = `📅 Tus datos locales (${localDate.toLocaleString('es-AR')}) son más nuevos que Drive (${driveDate.toLocaleString('es-AR')}).\n\n¿Qué querés usar?`;
+          const msg = `⚠️ HAY DOS VERSIONES DE TUS DATOS\n\n📱 Este dispositivo: ${localDate.toLocaleString('es-AR')}\n☁️ Google Drive: ${driveDate.toLocaleString('es-AR')}\n\n¿Cuál querés usar?\n\nOK → Usar los de ESTE DISPOSITIVO (y subir a Drive)\nCancelar → Traer los de DRIVE (pisará los de este dispositivo)`;
           const useLocal = confirm(msg + '\n\nOK = Mantener datos locales y subir a Drive\nCancelar = Traer datos del Drive');
           if(useLocal){
             await driveSave(true);
@@ -688,6 +689,12 @@ async function driveRefresh(){
   if(!driveToken){ showToast('⚠ Conectá Drive primero'); return; }
   showToast('🔄 Trayendo datos del Drive...');
   await driveLoadOrCreate();
+}
+function clearLocalCache(){
+  if(!confirm('⚠ Esto borra todos los datos locales de este dispositivo y trae los datos del Drive.\n\n¿Seguro?')) return;
+  localStorage.clear();
+  showToast('🗑 Caché limpiado — reconectá Drive para traer los datos');
+  setTimeout(()=>location.reload(), 1500);
 }
 function driveSaveDebounced(){ if(!driveToken) return; clearTimeout(driveSaveTimeout); driveSaveTimeout = setTimeout(()=>driveSave(), 3000); }
 function checkDriveBeforeEdit(){
