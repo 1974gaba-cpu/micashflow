@@ -637,7 +637,7 @@ async function driveLoadOrCreate(){
         if(diffMins > 1){
           // Local es más nuevo — preguntar
           const msg = `⚠️ HAY DOS VERSIONES DE TUS DATOS\n\n📱 Este dispositivo: ${localDate.toLocaleString('es-AR')}\n☁️ Google Drive: ${driveDate.toLocaleString('es-AR')}\n\n¿Cuál querés usar?\n\nOK → Usar los de ESTE DISPOSITIVO (y subir a Drive)\nCancelar → Traer los de DRIVE (pisará los de este dispositivo)`;
-          const useLocal = confirm(msg + '\n\nOK = Mantener datos locales y subir a Drive\nCancelar = Traer datos del Drive');
+          const useLocal = confirm(msg);
           if(useLocal){
             await driveSave(true);
             setDriveStatus('✓ Datos locales subidos a Drive', '#2ecc71');
@@ -709,7 +709,9 @@ async function driveRefresh(){
 }
 function clearLocalCache(){
   if(!confirm('⚠ Esto borra todos los datos locales de este dispositivo y trae los datos del Drive.\n\n¿Seguro?')) return;
+  const savedFileId = localStorage.getItem('cf3_driveFileId');
   localStorage.clear();
+  if(savedFileId) localStorage.setItem('cf3_driveFileId', savedFileId);
   showToast('🗑 Caché limpiado — reconectá Drive para traer los datos');
   setTimeout(()=>location.reload(), 1500);
 }
