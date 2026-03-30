@@ -420,18 +420,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
     </div>
     <div class="card">
       <div class="card-title"><span class="dot dr"></span>Debés vos (pagás cuotas)</div>
-      <table class="tbl"><thead><tr><th>Acreedor</th><th>Moneda</th><th>Cuota</th><th>Cuotas rest.</th><th>Día pago</th><th>Nota</th><th></th></tr></thead><tbody id="tb-pi"></tbody></table>
+      <table class="tbl"><thead><tr><th>Acreedor</th><th>Moneda</th><th>Capital</th><th>Tasa/año</th><th>Vencimiento</th><th id="th-pi-cancel">Si cancelo en —</th><th>Nota</th><th></th></tr></thead><tbody id="tb-pi"></tbody></table>
       <button class="btn-toggle" onclick="toggleForm('frm-pi')">+ Agregar préstamo recibido</button>
       <div class="add-form" id="frm-pi" style="display:none">
         <div class="form-row">
           <div class="fg" style="flex:2"><label>Acreedor</label><input id="pi-desc" placeholder="Ej: Familiar, Socio"></div>
           <div class="fg"><label>Moneda</label><select id="pi-cur"><option value="ARS">ARS</option><option value="USD">USD</option></select></div>
-          <div class="fg"><label>Cuota mensual</label><input id="pi-amt" type="number" placeholder="0"></div>
-          <div class="fg"><label>Cuotas restantes</label><input id="pi-cuotas" type="number" placeholder="Ej: 6"></div>
-          <div class="fg" style="min-width:80px"><label>Día pago</label><input id="pi-day" type="number" placeholder="1-31"></div>
+          <div class="fg"><label>Capital tomado</label><input id="pi-capital" type="number" placeholder="Ej: 4000" step="0.01"></div>
+          <div class="fg"><label>Fecha inicio</label><input id="pi-inicio" type="date"></div>
+          <div class="fg"><label>Tasa anual % (opcional)</label><input id="pi-tasa" type="number" placeholder="Ej: 10  (vacío = sin interés)" step="0.01"></div>
+          <div class="fg"><label>Fecha vencimiento (opcional)</label><input id="pi-vence" type="date"></div>
           <div class="fg" style="flex:2"><label>Nota</label><input id="pi-note" placeholder="Condiciones..."></div>
-          <button class="btn-add" onclick="addItem('prestamos_in','frm-pi',['pi-desc','pi-cur','pi-amt','pi-cuotas','pi-day','pi-note'])">Agregar</button>
+          <button class="btn-add" onclick="addPrestamoIn()">Agregar</button>
         </div>
+        <div class="form-hint">💡 Tasa vacía = préstamo sin interés. Podés cargar fechas pasadas para préstamos ya tomados.</div>
       </div>
     </div>
     <div class="card">
@@ -845,7 +847,18 @@ function calcMonth(ym){
   state.da_fijos.forEach(r=>{ const {activo}=daCuotaActual(r,ym); if(activo) r.cur==='ARS'?ga+=parseFloat(r.amt)||0:gu+=parseFloat(r.amt)||0; });
   (state.tarjetas[ym]||[]).forEach(r=>r.cur==='ARS'?ga+=parseFloat(r.amt)||0:gu+=parseFloat(r.amt)||0);
   (state.gastos_directos[ym]||[]).forEach(r=>r.cur==='ARS'?ga+=parseFloat(r.amt)||0:gu+=parseFloat(r.amt)||0);
-  state.prestamos_in.forEach(r=>{ const cuotas=parseInt(r.cuotas)||0; if(cuotas>0) r.cur==='ARS'?ga+=parseFloat(r.amt)||0:gu+=parseFloat(r.amt)||0; });
+  state.prestamos_in.forEach(r=>{
+    if(r.capital&&r.fecha_inicio){
+      // Formato nuevo: solo cuenta como gasto en el mes de vencimiento (o en el mes actual si ya venció)
+      const vym=r.fecha_vencimiento?r.fecha_vencimiento.slice(0,7):'';
+      if(vym===ym){
+        const cancel=calcCancelacionPI(r,ym)||0;
+        r.cur==='ARS'?ga+=cancel:gu+=cancel;
+      }
+    } else {
+      const cuotas=parseInt(r.cuotas)||0; if(cuotas>0) r.cur==='ARS'?ga+=parseFloat(r.amt)||0:gu+=parseFloat(r.amt)||0;
+    }
+  });
   return{ing_ars:ia,ing_usd:iu,gas_ars:ga,gas_usd:gu,saldo_ars:ia-ga,saldo_usd:iu-gu,neto_usd:(iu-gu)+(ia-ga)/state.fx};
 }
 
@@ -947,6 +960,49 @@ function addNota(){
   const titulo=document.getElementById('nota-titulo').value.trim(); if(!titulo){alert('Agregá un título.');return;}
   state.notas.unshift({id:uid(),titulo,body:document.getElementById('nota-body').value.trim(),cat:document.getElementById('nota-cat').value,periodo:document.getElementById('nota-periodo').value||state.currentMonth,fecha:new Date().toISOString().slice(0,10)});
   saveState(); document.getElementById('nota-titulo').value=''; document.getElementById('nota-body').value=''; renderNotas();
+}
+
+function addPrestamoIn(){
+  const desc=document.getElementById('pi-desc').value.trim();
+  if(!desc){alert('Completá el acreedor.');return;}
+  const capital=parseFloat(document.getElementById('pi-capital').value);
+  if(!capital||capital<=0){alert('Ingresá el capital tomado.');return;}
+  const fechaInicio=document.getElementById('pi-inicio').value;
+  if(!fechaInicio){alert('Ingresá la fecha en que tomaste el dinero.');return;}
+  checkDriveBeforeEdit();
+  const item={
+    id:uid(),
+    desc,
+    cur:document.getElementById('pi-cur').value,
+    capital:String(capital),
+    fecha_inicio:fechaInicio,
+    tasa_anual:document.getElementById('pi-tasa').value.trim()||'',
+    fecha_vencimiento:document.getElementById('pi-vence').value||'',
+    note:document.getElementById('pi-note').value.trim(),
+    // campos legacy para compatibilidad con calcMonth/pasivos
+    amt:String(capital),
+    cuotas:'1',
+    day:''
+  };
+  state.prestamos_in.push(item);
+  saveState();
+  ['pi-desc','pi-capital','pi-inicio','pi-tasa','pi-vence','pi-note'].forEach(id=>{document.getElementById(id).value='';});
+  document.getElementById('pi-cur').value='ARS';
+  document.getElementById('frm-pi').style.display='none';
+  renderAll();
+}
+
+// Calcula cuánto hay que pagar si se cancela al último día del mes ym
+function calcCancelacionPI(item, ym){
+  const capital=parseFloat(item.capital)||0;
+  if(!capital||!item.fecha_inicio) return null;
+  const tasa=parseFloat(item.tasa_anual)||0;
+  if(tasa===0) return capital; // sin interés
+  const inicio=new Date(item.fecha_inicio+'T12:00:00');
+  const[y,m]=ym.split('-').map(Number);
+  const lastDay=new Date(y,m,0); lastDay.setHours(12,0,0,0);
+  const dias=Math.max(0,Math.round((lastDay-inicio)/86400000));
+  return capital*(1+tasa/100*dias/365);
 }
 
 // ─── DELETE ────────────────────────────────────────────────────────────
@@ -1073,6 +1129,57 @@ function renderCancelados(){
 }
 function delCancelado(id){ state.prestamos_cancelados=state.prestamos_cancelados.filter(r=>r.id!==id); saveState();renderCancelados(); }
 
+// ─── RENDER PRESTAMOS IN ───────────────────────────────────────────────
+function renderPrestamosIn(){
+  const tb=document.getElementById('tb-pi'); if(!tb)return;
+  const ym=state.currentMonth;
+  // Actualizar header con el mes actual
+  const thCancel=document.getElementById('th-pi-cancel');
+  if(thCancel) thCancel.textContent='Si cancelo en '+mlabel(ym);
+
+  const rows=state.prestamos_in;
+  if(!rows||!rows.length){tb.innerHTML=`<tr><td colspan="8" class="empty-state">Sin préstamos activos</td></tr>`;return;}
+
+  tb.innerHTML=rows.map(r=>{
+    const isNew=!!(r.capital&&r.fecha_inicio);
+
+    if(isNew){
+      // ── Formato nuevo: capital + tasa + fecha ──
+      const capital=parseFloat(r.capital)||0;
+      const tasa=parseFloat(r.tasa_anual)||0;
+      const cancelAmt=calcCancelacionPI(r,ym);
+      const cancelFmt=cancelAmt!=null?`<span style="font-family:var(--mono);font-size:13px;color:var(--red);font-weight:600">${r.cur==='USD'?'USD':'ARS'} ${fmtN(cancelAmt)}</span>`:'—';
+      // Intereses acumulados al mes actual
+      const intereses=cancelAmt!=null&&tasa>0?cancelAmt-capital:0;
+      const interesesFmt=tasa>0&&intereses>0?`<span style="font-size:10px;font-family:var(--mono);color:var(--muted)"> (+${r.cur==='USD'?'USD':'ARS'} ${fmtN(intereses)} int.)</span>`:'';
+
+      // Vencimiento
+      let vencFmt='—';
+      if(r.fecha_vencimiento){
+        const vd=new Date(r.fecha_vencimiento+'T12:00:00');
+        vencFmt=vd.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+        // Si vence este mes o ya venció
+        const vym=r.fecha_vencimiento.slice(0,7);
+        if(vym<ym) vencFmt=`<span style="color:var(--red)">${vencFmt} ⚠</span>`;
+        else if(vym===ym) vencFmt=`<span style="color:var(--amber)">${vencFmt} 🔔</span>`;
+      }
+
+      // Tasa
+      const tasaFmt=tasa>0?`<span style="font-family:var(--mono);color:var(--amber)">${tasa}%</span>`:`<span style="color:var(--green);font-size:11px;font-family:var(--mono)">sin interés</span>`;
+
+      // Capital
+      const capitalFmt=`<span style="font-family:var(--mono)">${r.cur==='USD'?'USD':'ARS'} ${fmtN(capital)}</span>`;
+
+      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td>${capitalFmt}</td><td>${tasaFmt}</td><td style="font-size:12px">${vencFmt}</td><td>${cancelFmt}${interesesFmt}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>`;
+    } else {
+      // ── Formato viejo: cuota + cuotas restantes ──
+      const c=parseInt(r.cuotas)||0;
+      const cuotaCell=c===0?`<span class="badge br">Finalizado</span>`:`<span class="badge ba">${c}</span>`;
+      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td class="mono-cell">${fmtN(r.amt)}</td><td>—</td><td style="font-size:12px;font-family:var(--mono);color:var(--muted)">${r.day?'día '+r.day:'—'}</td><td>${cuotaCell} cuotas</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button onclick="decrementCuotas('prestamos_in','${r.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:1px 7px;cursor:pointer;font-family:var(--mono)">−1</button><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>`;
+    }
+  }).join('');
+}
+
 // ─── RENDER INVERSIONES ────────────────────────────────────────────────
 function renderInversiones(){
   const container=document.getElementById('inv-brokers-container'); if(!container)return;
@@ -1130,7 +1237,7 @@ function renderAll(){
   renderTable('tb-ef',state.efectivo,['desc','tipo','cur','amt','note'],'efectivo');
   renderEfectivoTotal();
   renderPrestamos('prestamos_out','tb-po');
-  renderPrestamos('prestamos_in','tb-pi');
+  renderPrestamosIn();
   renderCancelados();
   renderAlerts();
   // Renderizar seguros solo si la tab está activa (evitar trabajo innecesario)
@@ -1416,7 +1523,16 @@ function renderResumen(){
   const totalFutARS=cobrosFuturos.reduce((a,r)=>a+r.ars,0);
   // Pasivos: deuda total de préstamos recibidos activos (amt × cuotas restantes)
   let pasivo_usd=0,pasivo_ars=0;
-  (state.prestamos_in||[]).forEach(r=>{const c=parseInt(r.cuotas)||0;if(c>0){const t=(parseFloat(r.amt)||0)*c;r.cur==='USD'?pasivo_usd+=t:pasivo_ars+=t;}});
+  (state.prestamos_in||[]).forEach(r=>{
+    if(r.capital&&r.fecha_inicio){
+      // Formato nuevo: usar monto de cancelación del mes actual
+      const cancel=calcCancelacionPI(r,ym)||0;
+      if(cancel>0) r.cur==='USD'?pasivo_usd+=cancel:pasivo_ars+=cancel;
+    } else {
+      // Formato viejo: cuota × cuotas restantes
+      const c=parseInt(r.cuotas)||0;if(c>0){const t=(parseFloat(r.amt)||0)*c;r.cur==='USD'?pasivo_usd+=t:pasivo_ars+=t;}
+    }
+  });
   const pasivo_usd_equiv=pasivo_usd+pasivo_ars/fx;
   const today=new Date().toISOString().slice(0,7); const esMesActual=ym===today;
 
@@ -1524,7 +1640,7 @@ const FDEFS={
   inversiones:[{k:'desc',l:'Ticker',t:'text'},{k:'broker',l:'Broker',t:'text'},{k:'tipo',l:'Tipo',t:'select',o:['Fondo','CEDEAR','Acción','Bono','Otro']},{k:'cur',l:'Moneda',t:'select',o:['USD','ARS']},{k:'val',l:'Valor',t:'number'},{k:'liq',l:'Liquidez',t:'select',o:['Inmediata','Corto','Medio','Largo']},{k:'note',l:'Nota',t:'text'}],
   efectivo:[{k:'desc',l:'Descripción',t:'text'},{k:'tipo',l:'Tipo',t:'select',o:['Efectivo','Billetera digital','Cuenta bancaria','Otro']},{k:'cur',l:'Moneda',t:'select',o:['USD','ARS']},{k:'amt',l:'Monto',t:'number'},{k:'note',l:'Nota',t:'text'}],
   prestamos_out:[{k:'desc',l:'Deudor',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Cuota',t:'number'},{k:'cuotas',l:'Cuotas rest.',t:'number'},{k:'day',l:'Día cobro',t:'number'},{k:'inicio',l:'Mes inicio',t:'month'},{k:'note',l:'Nota',t:'text'}],
-  prestamos_in:[{k:'desc',l:'Acreedor',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Cuota',t:'number'},{k:'cuotas',l:'Cuotas rest.',t:'number'},{k:'day',l:'Día pago',t:'number'},{k:'note',l:'Nota',t:'text'}],
+  prestamos_in:[{k:'desc',l:'Acreedor',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'capital',l:'Capital',t:'number'},{k:'fecha_inicio',l:'Fecha inicio',t:'date'},{k:'tasa_anual',l:'Tasa anual %',t:'number'},{k:'fecha_vencimiento',l:'Fecha vencimiento',t:'date'},{k:'note',l:'Nota',t:'text'}],
   da_fijos:[{k:'desc',l:'Descripción',t:'text'},{k:'tarjeta',l:'Tarjeta',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'cuotas_total',l:'Cuotas totales',t:'number'},{k:'inicio',l:'Mes inicio',t:'month'},{k:'note',l:'Nota',t:'text'}],
 };
 const CLBLS={ingresos_fijos:'Ingreso fijo',ingresos_espo:'Ingreso esporádico',gastos_fijos:'Gasto fijo',da_fijos:'Débito automático',tarjetas:'Tarjeta',gastos_directos:'Gasto directo',inversiones:'Inversión',efectivo:'Efectivo',prestamos_out:'Préstamo otorgado',prestamos_in:'Préstamo recibido'};
