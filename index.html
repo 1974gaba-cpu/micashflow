@@ -635,35 +635,22 @@ async function driveFindFileByName(){
   } catch(e){ return null; }
 }
 async function driveLoadOrCreate(){
-  // Si no tenemos fileId, buscar por nombre en Drive antes de crear uno nuevo
-  if(!driveFileId){
-    setDriveStatus('Buscando archivo en Drive...', 'var(--muted)');
-    const foundId = await driveFindFileByName();
-    if(foundId){ driveFileId = foundId; localStorage.setItem('cf3_driveFileId', driveFileId); }
+  // Siempre buscar por nombre primero — ignorar ID cacheado para evitar duplicados
+  setDriveStatus('Buscando archivo en Drive...', 'var(--muted)');
+  const foundId = await driveFindFileByName();
+  if(foundId && foundId !== driveFileId){
+    driveFileId = foundId;
+    localStorage.setItem('cf3_driveFileId', driveFileId);
   }
   if(driveFileId){
     try {
       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, { headers:{ Authorization: 'Bearer '+driveToken } });
       if(res.ok){
         const driveData = await res.json();
-        const driveDate = driveData.savedAt ? new Date(driveData.savedAt) : new Date(0);
-        const localDate = state._savedAt ? new Date(state._savedAt) : new Date(0);
-        const diffMins = (localDate - driveDate) / 60000;
-
-        if(diffMins > 1){
-          // Local es más nuevo — preguntar
-          const msg = `⚠️ HAY DOS VERSIONES DE TUS DATOS\n\n📱 Este dispositivo: ${localDate.toLocaleString('es-AR')}\n☁️ Google Drive: ${driveDate.toLocaleString('es-AR')}\n\n¿Cuál querés usar?\n\nOK → Usar los de ESTE DISPOSITIVO (y subir a Drive)\nCancelar → Traer los de DRIVE (pisará los de este dispositivo)`;
-          const useLocal = confirm(msg);
-          if(useLocal){
-            await driveSave(true);
-            setDriveStatus('✓ Datos locales subidos a Drive', '#2ecc71');
-            showToast('✓ Datos locales guardados en Drive');
-            return;
-          }
-        }
-        // Drive es más nuevo o el usuario eligió Drive
         let loaded = 0;
         STATE_KEYS.forEach(k=>{ if(driveData[k]!==undefined){ state[k]=driveData[k]; loaded++; } });
+        state._savedAt = driveData.savedAt || new Date().toISOString();
+        lsSet('_savedAt', state._savedAt);
         lsSet('__drive_loaded', true); saveStateLocal(); renderAll();
         setDriveStatus('✓ Sincronizado', '#2ecc71');
         showToast(`☁ Datos cargados desde Drive (${loaded} secciones)`); return;
