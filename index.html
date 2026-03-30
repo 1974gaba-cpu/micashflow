@@ -624,7 +624,23 @@ function driveAuth(){
   });
   client.requestAccessToken();
 }
+async function driveFindFileByName(){
+  try {
+    const q = encodeURIComponent(`name='${DRIVE_FILE_NAME}' and trashed=false`);
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`, { headers:{ Authorization: 'Bearer '+driveToken } });
+    if(!res.ok) return null;
+    const data = await res.json();
+    if(data.files && data.files.length > 0) return data.files[0].id; // el más reciente
+    return null;
+  } catch(e){ return null; }
+}
 async function driveLoadOrCreate(){
+  // Si no tenemos fileId, buscar por nombre en Drive antes de crear uno nuevo
+  if(!driveFileId){
+    setDriveStatus('Buscando archivo en Drive...', 'var(--muted)');
+    const foundId = await driveFindFileByName();
+    if(foundId){ driveFileId = foundId; localStorage.setItem('cf3_driveFileId', driveFileId); }
+  }
   if(driveFileId){
     try {
       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, { headers:{ Authorization: 'Bearer '+driveToken } });
