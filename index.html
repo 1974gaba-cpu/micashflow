@@ -91,6 +91,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 .btn-edit:hover{color:var(--accent);background:var(--accent-dim);}
 .btn-cobrar{background:var(--green-dim);border:1px solid var(--green);border-radius:4px;cursor:pointer;color:var(--green);font-size:10px;font-family:var(--mono);padding:2px 8px;transition:.15s;white-space:nowrap;}
 .btn-cobrar:hover{background:var(--green);color:#000;}
+.btn-no-cobrado{background:var(--red-dim);border:1px solid var(--red);border-radius:6px;padding:7px 15px;font-size:12px;font-family:var(--sans);font-weight:700;color:var(--red);cursor:pointer;transition:.15s;}
+.btn-no-cobrado:hover{background:var(--red);color:#fff;}
+.badge-en-duda{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:4px;background:var(--red-dim);color:var(--red);border:1px solid #7f1d1d;}
 .add-form{background:var(--surface2);border:1px dashed var(--border2);border-radius:var(--r);padding:14px;margin-top:12px;}
 .form-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
 .fg{display:flex;flex-direction:column;gap:4px;flex:1;min-width:100px;}
@@ -551,9 +554,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
         <button onclick="desactivarPagoPartido()" style="background:none;border:none;color:var(--muted);font-size:12px;font-family:var(--mono);cursor:pointer;text-decoration:underline">← Volver a destino único</button>
       </div>
     </div>
+    <div id="cobro-no-cobrado-section" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:8px">¿No se cobró esta cuota?</div>
+      <button class="btn-no-cobrado" onclick="marcarNoCobrado()" style="width:100%">✗ No cobrado — marcar en duda</button>
+      <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:5px">El préstamo entero se excluye del patrimonio proyectado. Las cuotas no bajan. Si cobrás después, lo cargás manual en Efectivo.</div>
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeCobroModal()">Cancelar</button>
-      <button class="btn-save" onclick="confirmarCobro()">Confirmar cobro</button>
+      <button class="btn-save" onclick="confirmarCobro()">✓ Confirmar cobro</button>
     </div>
   </div>
 </div>
@@ -822,6 +830,19 @@ function daCuotaActual(item, ym){
 // ─── COBROS HELPERS ────────────────────────────────────────────────────
 function cobroKey(col,id,ym){return`${col}:${id}:${ym}`;}
 function isCobrado(col,id,ym){return !!state.cobros[cobroKey(col,id,ym)];}
+function isNoCobrado(col,id,ym){const c=state.cobros[cobroKey(col,id,ym)];return !!(c&&c.destino==='no_cobrado');}
+// ¿Alguna cuota del préstamo fue marcada como no cobrada? → todo el préstamo queda en duda
+function prestamEnDuda(col,id){
+  return Object.keys(state.cobros||{}).some(k=>k.startsWith(`${col}:${id}:`)&&state.cobros[k]&&state.cobros[k].destino==='no_cobrado');
+}
+function marcarNoCobrado(){
+  const item=state[_cobroCol]?.find(r=>r.id===_cobroId); if(!item)return;
+  const ym=state.currentMonth;
+  state.cobros[cobroKey(_cobroCol,_cobroId,ym)]={destino:'no_cobrado',monto:item.amt,cur:item.cur,fecha:new Date().toISOString().slice(0,10)};
+  // NO decrementar cuotas, NO agregar a efectivo
+  saveState();closeCobroModal();renderAll();
+  showToast(`⚠ ${item.desc} marcado como "en duda" — excluido del patrimonio proyectado`);
+}
 
 // ─── CALC MONTH ────────────────────────────────────────────────────────
 const _TODAY_YM = new Date().toISOString().slice(0,7);
@@ -1110,15 +1131,18 @@ function renderPrestamos(col,tbodyId){
     const cuotasEnMes = isOut ? prestamoCuotasEnMes(r, ym) : c;
     const inactive = isOut ? cuotasEnMes===0 && !noIniciado && c===0 : c===0;
     const cobrado=isCobrado(col,r.id,ym);
+    const noCobrado=isNoCobrado(col,r.id,ym);
+    const enDuda=prestamEnDuda(col,r.id);
     let cuotaCell='';
     if(c===0 && !noIniciado){ cuotaCell=`<span class="badge br">Finalizado</span>`; }
     else if(noIniciado){ cuotaCell=`<span style="font-size:11px;font-family:var(--mono);color:var(--muted)">desde ${inicio}</span>`; }
+    else if(noCobrado){ cuotaCell=`<span class="badge-en-duda">⚠ En duda</span>`; }
     else { cuotaCell=`<div style="display:flex;align-items:center;gap:5px"><span class="badge ${cobrado?'bg':'ba'}">${cuotasEnMes}</span>${cobrado?`<span style="font-size:10px;font-family:var(--mono);color:var(--green)">✓ cobrado</span>`:''}</div>`; }
-    const showCobrar=isOut&&cuotasEnMes>0&&!noIniciado&&!cobrado;
+    const showCobrar=isOut&&cuotasEnMes>0&&!noIniciado&&!cobrado&&!noCobrado;
     const showMinus=!isOut&&c>0;
     const btns=showCobrar?`<button class="btn-cobrar" onclick="abrirCobro('${col}','${r.id}')">Cobrar</button>`:(showMinus?`<button onclick="decrementCuotas('${col}','${r.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:1px 7px;cursor:pointer;font-family:var(--mono)">−1</button>`:'');
-    const rowStyle=(c===0&&!noIniciado)||noIniciado?'opacity:0.45':'';
-    return`<tr data-id="${r.id}" style="${rowStyle}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td class="mono-cell" style="${inactive?'text-decoration:line-through':''}">${fmtN(r.amt)}</td><td>${cuotaCell}</td><td>${r.day||'—'}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><span class="drag-handle" title="Arrastrar">⠿</span>${btns}<button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button></td></tr>`;
+    const rowStyle=(c===0&&!noIniciado)||noIniciado?'opacity:0.45':enDuda?'background:#1f0d0d':'';
+    return`<tr data-id="${r.id}" style="${rowStyle}"><td>${r.desc}${enDuda&&isOut?` <span style="font-size:9px;font-family:var(--mono);color:var(--red)">⚠ en duda</span>`:''}</td><td>${curBadge(r.cur)}</td><td class="mono-cell" style="${inactive?'text-decoration:line-through':''}">${fmtN(r.amt)}</td><td>${cuotaCell}</td><td>${r.day||'—'}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><span class="drag-handle" title="Arrastrar">⠿</span>${btns}<button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button></td></tr>`;
   }).join('');
   initDragDrop(tbodyId, col);
 }
@@ -1512,7 +1536,8 @@ function renderResumen(){
   const cobrosFuturos=[];
   let cursor=nextYM(ym); let maxMeses=36;
   while(maxMeses-->0){
-    const pendientes=state.prestamos_out.filter(r=>prestamoCuotasEnMes(r,cursor)>0&&!isCobrado('prestamos_out',r.id,cursor));
+    // Excluir préstamos marcados "en duda" (alguna cuota no cobrada)
+    const pendientes=state.prestamos_out.filter(r=>prestamoCuotasEnMes(r,cursor)>0&&!isCobrado('prestamos_out',r.id,cursor)&&!prestamEnDuda('prestamos_out',r.id));
     if(!pendientes.length) break;
     const cusd=pendientes.filter(r=>r.cur==='USD').reduce((a,r)=>a+(parseFloat(r.amt)||0),0);
     const cars=pendientes.filter(r=>r.cur==='ARS').reduce((a,r)=>a+(parseFloat(r.amt)||0),0);
@@ -1535,6 +1560,8 @@ function renderResumen(){
   });
   const pasivo_usd_equiv=pasivo_usd+pasivo_ars/fx;
   const today=new Date().toISOString().slice(0,7); const esMesActual=ym===today;
+  // Préstamos otorgados en duda (alguna cuota marcada no cobrada)
+  const prestamosEnDudaCount=state.prestamos_out.filter(r=>prestamEnDuda('prestamos_out',r.id)).length;
 
   // Seguros: calcular total USD equiv para mostrar en patrimonio
   const seguros = state.seguros_capitalizacion || [];
@@ -1578,30 +1605,37 @@ function renderResumen(){
     </div>
     ${neto_usd>=0?`<div class="reinvest-box"><h4>✦ Capital disponible para reinvertir</h4><p>Sobrante estimado: <strong>USD ${fmtN(Math.abs(saldo_usd))} + ARS ${fmtN(Math.abs(saldo_ars))}</strong> (≈ USD ${fmtN(Math.abs(neto_usd))} al TC ${fmtN(fx)}).</p></div>`:`<div class="rescue-box"><h4>⚠ Análisis de rescate sugerido</h4><p style="font-size:12px;color:var(--muted2);margin-bottom:9px">Faltante estimado: USD ${fmtN(Math.abs(neto_usd))}. Inversiones ordenadas por liquidez:</p>${rescue.length?rescue.slice(0,5).map(r=>`<div class="rescue-item"><span>${r.name} — ${liqBadge(r.liq)}</span><span style="font-family:var(--mono);color:var(--muted2)">USD ${fmtN(r.val)}</span></div>`).join(''):'<div style="color:var(--muted);font-size:12px;font-family:var(--mono)">Cargá tus inversiones para ver sugerencias.</div>'}</div>`}
     <div style="margin-top:18px">
-      <div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">📊 Tu patrimonio real al ${new Date().toLocaleDateString('es-AR')} ${cerrado?'<span style="color:var(--green)">(snapshot cerrado)</span>':''}</div>
-      <div class="sg">
-        <div class="sc" style="background:#0a1628;border-color:var(--blue)">
-          <div class="slabel" style="color:var(--blue)">Patrimonio total en USD</div>
-          <div class="samt" style="color:var(--blue);font-size:32px">USD ${fmtN(patrimonioActual)}</div>
-          <div class="ssub" style="margin-top:8px;display:flex;flex-direction:column;gap:3px">
-            <span>Inversiones: USD ${fmtN(inv_usd)}</span>
-            <span>Seguros: USD ${fmtN(seg_usd_equiv)}</span>
-            <span>Efectivo USD: USD ${fmtN(ef_usd)}</span>
-            <span>Efectivo ARS: ARS ${fmtN(ef_ars)} (≈ USD ${fmtN(ef_ars/fx)})</span>
+      <div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">📊 Tu patrimonio al ${new Date().toLocaleDateString('es-AR')} ${cerrado?'<span style="color:var(--green)">(snapshot cerrado)</span>':''}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:13px">
+
+        <!-- PATRIMONIO HOY -->
+        <div style="background:#0a1628;border:1px solid var(--blue);border-radius:var(--rl);padding:18px 20px">
+          <div style="font-size:10px;font-family:var(--mono);color:var(--blue);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Patrimonio hoy</div>
+          <div style="font-family:var(--mono);font-size:28px;font-weight:700;color:#60a5fa;letter-spacing:-1px">USD ${fmtN(patrimonioActual)}</div>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--border);padding-top:8px">
+            <div style="font-size:11px;color:var(--muted2);font-family:var(--mono)">Inversiones: <span style="color:var(--accent)">USD ${fmtN(inv_usd)}</span></div>
+            <div style="font-size:11px;color:var(--muted2);font-family:var(--mono)">Seguros: <span style="color:var(--accent)">USD ${fmtN(seg_usd_equiv)}</span></div>
+            <div style="font-size:11px;color:var(--muted2);font-family:var(--mono)">Efectivo USD: <span style="color:var(--green)">USD ${fmtN(ef_usd)}</span></div>
+            <div style="font-size:11px;color:var(--muted2);font-family:var(--mono)">Efectivo ARS: <span style="color:var(--text)">≈ USD ${fmtN(ef_ars/fx)}</span></div>
           </div>
         </div>
-        <div class="sc" style="background:#0a1628;border-color:var(--blue)">
-          <div class="slabel" style="color:var(--blue)">Efectivo disponible hoy</div>
-          <div class="samt" style="color:var(--green);font-size:28px">USD ${fmtN(ef_usd)}</div>
-          <div class="ssub" style="margin-top:4px">+ ARS ${fmtN(ef_ars)}</div>
-          <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
-            <div class="slabel" style="color:var(--accent);margin-bottom:4px">En inversiones</div>
-            <div style="font-family:var(--mono);font-size:18px;color:var(--accent)">USD ${fmtN(inv_usd)}</div>
+
+        <!-- PATRIMONIO PROYECTADO -->
+        <div style="background:linear-gradient(135deg,#0d1f3c,#0a2240);border:1px solid #3b6cb7;border-radius:var(--rl);padding:18px 20px;opacity:0.85">
+          <div style="font-size:10px;font-family:var(--mono);color:#64a0d4;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Patrimonio proyectado</div>
+          <div style="font-size:9px;font-family:var(--mono);color:var(--muted);margin-bottom:8px">hoy + cobros futuros − deudas</div>
+          <div style="font-family:var(--mono);font-size:24px;font-weight:700;color:${patrimonioProyectado>=patrimonioActual?'#60a5fa':'var(--amber)'};letter-spacing:-1px">USD ${fmtN(patrimonioProyectado)}</div>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--border);padding-top:8px">
+            <div style="font-size:11px;color:var(--muted2);font-family:var(--mono)">+ Cobros futuros: <span style="color:var(--green)">USD ${fmtN(totalFutUSD+totalFutARS/fx)}</span></div>
+            ${pasivo_usd_equiv>0?`<div style="font-size:11px;color:var(--muted2);font-family:var(--mono)">− Deudas a pagar: <span style="color:var(--red)">USD ${fmtN(pasivo_usd_equiv)}</span></div>`:''}
+            ${prestamosEnDudaCount>0?`<div style="font-size:10px;color:var(--red);font-family:var(--mono);margin-top:2px">⚠ ${prestamosEnDudaCount} préstamo(s) en duda excluido(s)</div>`:''}
           </div>
+          <div style="margin-top:8px;font-size:9px;color:var(--muted);font-family:var(--mono)">* Estimación. No garantizada.</div>
         </div>
+
       </div>
     </div>
-    ${cobrosFuturos.length?`<div style="margin-top:18px"><div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">📅 Cobros futuros esperados</div><div class="card" style="padding:0;overflow:hidden">${cobrosFuturos.map((r,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;${i<cobrosFuturos.length-1?'border-bottom:1px solid var(--border2)':''}"><div style="font-family:var(--mono);font-size:12px;color:var(--muted2)">${mlabel(r.ym)}</div><div style="display:flex;gap:16px;font-family:var(--mono);font-size:12px">${r.usd>0?`<span style="color:var(--green)">USD ${fmtN(r.usd)}</span>`:''}${r.ars>0?`<span style="color:var(--text)">ARS ${fmtN(r.ars)}</span>`:''}</div></div>`).join('')}<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface2);border-top:2px solid var(--border)"><div style="font-size:11px;font-weight:700;color:var(--text);font-family:var(--mono);letter-spacing:.5px">TOTAL A COBRAR</div><div style="display:flex;gap:16px;font-family:var(--mono);font-size:12px;font-weight:700">${totalFutUSD>0?`<span style="color:var(--green)">USD ${fmtN(totalFutUSD)}</span>`:''}${totalFutARS>0?`<span style="color:var(--text)">ARS ${fmtN(totalFutARS)}</span>`:''}</div></div></div></div><div style="margin-top:14px"><div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">🚀 Patrimonio total proyectado</div><div style="background:linear-gradient(135deg,#0d1f3c,#0a2240);border:1px solid var(--blue);border-radius:var(--rl);padding:14px 18px;max-width:60%"><div style="font-size:10px;color:var(--blue);font-family:var(--mono);letter-spacing:1px;margin-bottom:4px">PATRIMONIO HOY + COBROS − DEUDAS FUTURAS</div><div style="font-family:var(--mono);font-size:26px;font-weight:900;color:#60a5fa">USD ${fmtN(patrimonioProyectado)}</div><div style="margin-top:10px;display:flex;flex-direction:column;gap:4px"><div style="font-size:11px;color:var(--muted2);font-family:var(--mono)">Patrimonio hoy: <span style="color:#60a5fa">USD ${fmtN(patrimonioActual)}</span></div><div style="font-size:11px;color:var(--muted2);font-family:var(--mono)">+ Cobros futuros: <span style="color:var(--green)">USD ${fmtN(totalFutUSD+totalFutARS/fx)}</span></div>${pasivo_html_proj}</div><div style="margin-top:8px;font-size:10px;color:var(--muted);font-family:var(--mono)">* Proyección estimada. No garantizada.</div></div></div>`:''}
+    ${cobrosFuturos.length?`<div style="margin-top:18px"><div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">📅 Cobros futuros esperados</div><div class="card" style="padding:0;overflow:hidden">${cobrosFuturos.map((r,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;${i<cobrosFuturos.length-1?'border-bottom:1px solid var(--border2)':''}"><div style="font-family:var(--mono);font-size:12px;color:var(--muted2)">${mlabel(r.ym)}</div><div style="display:flex;gap:16px;font-family:var(--mono);font-size:12px">${r.usd>0?`<span style="color:var(--green)">USD ${fmtN(r.usd)}</span>`:''}${r.ars>0?`<span style="color:var(--text)">ARS ${fmtN(r.ars)}</span>`:''}</div></div>`).join('')}<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface2);border-top:2px solid var(--border)"><div style="font-size:11px;font-weight:700;color:var(--text);font-family:var(--mono);letter-spacing:.5px">TOTAL A COBRAR</div><div style="display:flex;gap:16px;font-family:var(--mono);font-size:12px;font-weight:700">${totalFutUSD>0?`<span style="color:var(--green)">USD ${fmtN(totalFutUSD)}</span>`:''}${totalFutARS>0?`<span style="color:var(--text)">ARS ${fmtN(totalFutARS)}</span>`:''}</div></div></div></div>`:''}
     ${btnCerrar}`;
 }
 
