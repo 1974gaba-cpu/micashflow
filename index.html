@@ -344,7 +344,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
       <div class="card-title"><span class="dot db"></span>Agregar nueva posición</div>
       <div class="form-row">
         <div class="fg" style="flex:2"><label>Ticker / Nombre</label><input id="inv-desc" placeholder="Ej: COCOSPPA, JPM"></div>
-        <div class="fg" style="flex:2"><label>Broker</label><input id="inv-broker" placeholder="Ej: Cocos, Balanz, Allaria"></div>
+        <div class="fg" style="flex:2"><label>Broker</label><input id="inv-broker" placeholder="Ej: Cocos, Balanz, Allaria" list="inv-broker-list" autocomplete="off"><datalist id="inv-broker-list"></datalist></div>
         <div class="fg"><label>Tipo</label><select id="inv-tipo"><option value="Fondo">Fondo</option><option value="CEDEAR">CEDEAR</option><option value="Acción">Acción</option><option value="Bono">Bono</option><option value="Otro">Otro</option></select></div>
         <div class="fg"><label>Moneda</label><select id="inv-cur"><option value="USD">USD</option><option value="ARS">ARS</option></select></div>
         <div class="fg"><label>Valor estimado</label><input id="inv-val" type="number" placeholder="0"></div>
@@ -964,7 +964,7 @@ function addItem(col,formId,fieldIds){
 function addInversion(){
   const desc=document.getElementById('inv-desc').value.trim(); if(!desc){alert('Completá el ticker o nombre.');return;}
   checkDriveBeforeEdit();
-  const item={id:uid(),desc,broker:document.getElementById('inv-broker').value.trim()||'Sin broker',tipo:document.getElementById('inv-tipo').value,cur:document.getElementById('inv-cur').value,val:document.getElementById('inv-val').value,liq:document.getElementById('inv-liq').value,note:document.getElementById('inv-note').value.trim()};
+  const item={id:uid(),desc,broker:(document.getElementById('inv-broker').value.trim()||'Sin broker'),tipo:document.getElementById('inv-tipo').value,cur:document.getElementById('inv-cur').value,val:document.getElementById('inv-val').value,liq:document.getElementById('inv-liq').value,note:document.getElementById('inv-note').value.trim()};
   state.inversiones.push(item); saveState();
   ['inv-desc','inv-broker','inv-val','inv-note'].forEach(id=>document.getElementById(id).value='');
   renderAll(); showToast(`✓ ${item.desc} agregado a ${item.broker}`);
@@ -1208,6 +1208,12 @@ function renderPrestamosIn(){
 function renderInversiones(){
   const container=document.getElementById('inv-brokers-container'); if(!container)return;
   const inv=state.inversiones;
+  // Refrescar datalist con brokers existentes
+  const dl=document.getElementById('inv-broker-list');
+  if(dl){
+    const brokerSet=[...new Set(inv.map(r=>r.broker||'Sin broker').filter(Boolean))];
+    dl.innerHTML=brokerSet.map(b=>`<option value="${b}">`).join('');
+  }
   if(!inv.length){container.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-family:var(--mono)">Sin posiciones — agregá una abajo</div>';return;}
   const brokers={};
   inv.forEach(r=>{const b=r.broker||'Sin broker';if(!brokers[b])brokers[b]=[];brokers[b].push(r);});
