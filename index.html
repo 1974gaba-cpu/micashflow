@@ -783,7 +783,12 @@ function cerrarMes(ym){
   const invSnapshot = state.inversiones.map(r=>({id:r.id,desc:r.desc,tipo:r.tipo,cur:r.cur,val:r.val,liq:r.liq,note:r.note}));
   let ef_ars=0, ef_usd=0;
   state.efectivo.forEach(r=>{ if(r.cur==='ARS') ef_ars+=parseFloat(r.amt)||0; else ef_usd+=parseFloat(r.amt)||0; });
-  state.cierres[ym]={ inversiones: invSnapshot, efectivo_ars: ef_ars, efectivo_usd: ef_usd, fx: state.fx, cerradoEn: new Date().toISOString() };
+  // Snapshot de montos de débitos automáticos y gastos fijos — para que ediciones futuras no alteren meses cerrados
+  const da_amts={};
+  state.da_fijos.forEach(r=>{ da_amts[r.id]={amt:r.amt,cur:r.cur}; });
+  const gf_amts={};
+  state.gastos_fijos.forEach(r=>{ gf_amts[r.id]={amt:r.amt,cur:r.cur}; });
+  state.cierres[ym]={ inversiones: invSnapshot, efectivo_ars: ef_ars, efectivo_usd: ef_usd, fx: state.fx, da_amts, gf_amts, cerradoEn: new Date().toISOString() };
   saveState(); renderResumen(); showToast(`✓ Mes ${mlabel(ym)} cerrado — snapshot guardado`);
 }
 function getInversionesMes(ym){ if(isCerrado(ym)) return state.cierres[ym].inversiones; return state.inversiones; }
@@ -861,16 +866,28 @@ function prestamoCuotasEnMes(r, ym){
 }
 function calcMonth(ym){
   let ia=0,iu=0,ga=0,gu=0;
+  const cierre=isCerrado(ym)?state.cierres[ym]:null;
   (state.ingresos_fijos[ym]||[]).forEach(r=>r.cur==='ARS'?ia+=parseFloat(r.amt)||0:iu+=parseFloat(r.amt)||0);
   (state.ingresos_espo[ym]||[]).forEach(r=>r.cur==='ARS'?ia+=parseFloat(r.amt)||0:iu+=parseFloat(r.amt)||0);
   state.prestamos_out.forEach(r=>{ const cuotasEnMes = prestamoCuotasEnMes(r, ym); if(cuotasEnMes > 0 && !isCobrado('prestamos_out',r.id,ym)){ r.cur==='ARS'?ia+=parseFloat(r.amt)||0:iu+=parseFloat(r.amt)||0; } });
-  state.gastos_fijos.forEach(r=>r.cur==='ARS'?ga+=parseFloat(r.amt)||0:gu+=parseFloat(r.amt)||0);
-  state.da_fijos.forEach(r=>{ const {activo}=daCuotaActual(r,ym); if(activo) r.cur==='ARS'?ga+=parseFloat(r.amt)||0:gu+=parseFloat(r.amt)||0; });
+  state.gastos_fijos.forEach(r=>{
+    // Si hay snapshot del mes cerrado, usar el monto guardado en ese momento
+    const snap=cierre&&cierre.gf_amts&&cierre.gf_amts[r.id];
+    const amt=parseFloat(snap?snap.amt:r.amt)||0;
+    const cur=snap?snap.cur:r.cur;
+    cur==='ARS'?ga+=amt:gu+=amt;
+  });
+  state.da_fijos.forEach(r=>{
+    const {activo}=daCuotaActual(r,ym); if(!activo) return;
+    const snap=cierre&&cierre.da_amts&&cierre.da_amts[r.id];
+    const amt=parseFloat(snap?snap.amt:r.amt)||0;
+    const cur=snap?snap.cur:r.cur;
+    cur==='ARS'?ga+=amt:gu+=amt;
+  });
   (state.tarjetas[ym]||[]).forEach(r=>r.cur==='ARS'?ga+=parseFloat(r.amt)||0:gu+=parseFloat(r.amt)||0);
   (state.gastos_directos[ym]||[]).forEach(r=>r.cur==='ARS'?ga+=parseFloat(r.amt)||0:gu+=parseFloat(r.amt)||0);
   state.prestamos_in.forEach(r=>{
     if(r.capital&&r.fecha_inicio){
-      // Formato nuevo: solo cuenta como gasto en el mes de vencimiento (o en el mes actual si ya venció)
       const vym=r.fecha_vencimiento?r.fecha_vencimiento.slice(0,7):'';
       if(vym===ym){
         const cancel=calcCancelacionPI(r,ym)||0;
