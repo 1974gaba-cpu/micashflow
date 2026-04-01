@@ -516,19 +516,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
     <div class="modal-title">Registrar cobro <span id="cobro-lbl"></span></div>
     <p style="font-size:13px;color:var(--muted2);margin-bottom:8px">¿A dónde va este dinero?</p>
     <div id="cobro-modo-simple">
-      <div class="cobro-opts" id="cobro-opts">
-        <div class="cobro-opt" onclick="selectCobroDestino('efectivo')" id="co-efectivo">
-          <div class="co-icon">💵</div><div class="co-label">Efectivo</div><div class="co-sub">USD / ARS físico</div>
+      <!-- Cuentas reales -->
+      <div id="cobro-cuentas-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
+      <!-- Otra cuenta -->
+      <div id="cobro-otra-section" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+        <button onclick="toggleOtraCuenta()" id="btn-otra-cuenta" style="background:none;border:1px dashed var(--border2);border-radius:6px;color:var(--muted2);font-size:12px;font-family:var(--mono);padding:7px 14px;cursor:pointer;width:100%;text-align:left">+ Otra cuenta nueva</button>
+        <div id="cobro-otra-form" style="display:none;margin-top:8px">
+          <div class="form-row" style="gap:10px">
+            <div class="fg" style="flex:2"><label>Descripción</label><input id="cobro-nueva-desc" placeholder="Ej: Cuenta Galicia, Efectivo casa"></div>
+            <div class="fg"><label>Tipo</label><select id="cobro-nueva-tipo" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:13px;color:var(--text);font-family:var(--sans);outline:none"><option value="Billetera digital">📱 Billetera digital</option><option value="Efectivo">💵 Efectivo</option><option value="Cuenta bancaria">🏦 Cuenta bancaria</option></select></div>
+          </div>
         </div>
-        <div class="cobro-opt" onclick="selectCobroDestino('billetera')" id="co-billetera">
-          <div class="co-icon">📱</div><div class="co-label">Billetera digital</div><div class="co-sub">MP, Uala, etc.</div>
-        </div>
-        <div class="cobro-opt" onclick="selectCobroDestino('broker')" id="co-broker">
-          <div class="co-icon">📈</div><div class="co-label">Broker (Cocos)</div><div class="co-sub">Directamente al broker</div>
-        </div>
-      </div>
-      <div class="form-row" style="gap:12px;margin-top:8px">
-        <div class="fg"><label>Descripción destino</label><input id="cobro-dest-desc" placeholder="Ej: USD en casa, MP Gabriel"></div>
       </div>
       <div style="margin-top:10px;text-align:center">
         <button onclick="activarPagoPartido()" style="background:none;border:none;color:var(--accent);font-size:12px;font-family:var(--mono);cursor:pointer;text-decoration:underline">÷ Dividir en dos destinos</button>
@@ -1128,29 +1126,74 @@ function delNota(id){state.notas=state.notas.filter(n=>n.id!==id);saveState();re
 function decrementCuotas(col,id){ const item=state[col].find(r=>r.id===id); if(!item)return; const c=parseInt(item.cuotas)||0; if(c<=0)return; item.cuotas=String(c-1); saveState();renderAll(); }
 
 // ─── COBRO FLOW ────────────────────────────────────────────────────────
-let _cobroCol=null,_cobroId=null,_cobroDestino=null,_cobroPartido=false;
+let _cobroCol=null,_cobroId=null,_cobroDestino=null,_cobroPartido=false,_cobroEfectivoId=null;
+
 function abrirCobro(col,id){
   const item=state[col].find(r=>r.id===id); if(!item)return;
-  _cobroCol=col;_cobroId=id;_cobroDestino=null;_cobroPartido=false;
+  _cobroCol=col;_cobroId=id;_cobroDestino=null;_cobroPartido=false;_cobroEfectivoId=null;
   document.getElementById('cobro-lbl').textContent=`— ${item.desc} (${item.cur} ${fmtN(item.amt)})`;
-  document.getElementById('cobro-dest-desc').value='';
-  document.querySelectorAll('.cobro-opt').forEach(el=>el.classList.remove('selected'));
   document.getElementById('cobro-modo-simple').style.display='block';
   document.getElementById('cobro-modo-partido').style.display='none';
   document.getElementById('partido-amt-1').value=''; document.getElementById('partido-amt-2').value='';
   document.getElementById('partido-desc-1').value=''; document.getElementById('partido-desc-2').value='';
   document.getElementById('partido-error').style.display='none';
+  document.getElementById('cobro-otra-form').style.display='none';
+  document.getElementById('btn-otra-cuenta').textContent='+ Otra cuenta nueva';
+  document.getElementById('cobro-nueva-desc').value='';
+  // Renderizar cuentas reales filtradas por moneda
+  const listEl=document.getElementById('cobro-cuentas-list');
+  const cuentas=state.efectivo.filter(c=>c.cur===item.cur);
+  const iconMap={'Efectivo':'💵','Billetera digital':'📱','Cuenta bancaria':'🏦','Otro':'💰'};
+  listEl.innerHTML=cuentas.length
+    ? cuentas.map(c=>`<div class="cobro-cuenta-opt" data-id="${c.id}" onclick="selectCobroCuenta('${c.id}')" style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;transition:.15s">
+        <span style="font-size:18px">${iconMap[c.tipo]||'💰'}</span>
+        <div style="flex:1"><div style="font-size:13px;font-weight:600">${c.desc}</div><div style="font-size:10px;font-family:var(--mono);color:var(--muted)">${c.tipo} · ${c.cur} ${fmtN(c.amt)} actuales</div></div>
+        <span style="font-size:18px;color:var(--border2)">○</span>
+      </div>`).join('')
+    : `<div style="font-size:12px;font-family:var(--mono);color:var(--muted);padding:8px 0">No tenés cuentas en ${item.cur} — usá "Otra cuenta nueva"</div>`;
   document.getElementById('cobro-modal').classList.add('show');
 }
-function selectCobroDestino(d){ _cobroDestino=d; document.querySelectorAll('.cobro-opt').forEach(el=>el.classList.remove('selected')); document.getElementById('co-'+d).classList.add('selected'); }
+
+function selectCobroCuenta(efId){
+  _cobroEfectivoId=efId; _cobroDestino='cuenta_existente';
+  document.querySelectorAll('.cobro-cuenta-opt').forEach(el=>{
+    const isSelected=el.dataset.id===efId;
+    el.style.borderColor=isSelected?'var(--green)':'var(--border)';
+    el.style.background=isSelected?'var(--green-dim)':'var(--surface2)';
+    el.querySelector('span:last-child').textContent=isSelected?'✓':'○';
+  });
+  // Ocultar form de otra cuenta si estaba abierto
+  document.getElementById('cobro-otra-form').style.display='none';
+  document.getElementById('btn-otra-cuenta').textContent='+ Otra cuenta nueva';
+}
+
+function toggleOtraCuenta(){
+  const form=document.getElementById('cobro-otra-form');
+  const btn=document.getElementById('btn-otra-cuenta');
+  const isOpen=form.style.display!=='none';
+  form.style.display=isOpen?'none':'block';
+  btn.textContent=isOpen?'+ Otra cuenta nueva':'× Cancelar nueva cuenta';
+  if(!isOpen){
+    // Deseleccionar cuentas existentes
+    _cobroEfectivoId=null; _cobroDestino='cuenta_nueva';
+    document.querySelectorAll('.cobro-cuenta-opt').forEach(el=>{ el.style.borderColor='var(--border)'; el.style.background='var(--surface2)'; el.querySelector('span:last-child').textContent='○'; });
+  } else {
+    _cobroDestino=null;
+  }
+}
+
+function selectCobroDestino(d){ _cobroDestino=d; } // legacy, ya no se usa en modo simple
+
 function activarPagoPartido(){ _cobroPartido=true; document.getElementById('cobro-modo-simple').style.display='none'; document.getElementById('cobro-modo-partido').style.display='block'; const item=state[_cobroCol]?.find(r=>r.id===_cobroId); if(item) document.getElementById('partido-amt-1').placeholder=`Total: ${fmtN(item.amt)}`; }
 function desactivarPagoPartido(){ _cobroPartido=false; document.getElementById('cobro-modo-simple').style.display='block'; document.getElementById('cobro-modo-partido').style.display='none'; }
 function calcPartidoResto(){ const item=state[_cobroCol]?.find(r=>r.id===_cobroId); if(!item)return; const total=parseFloat(item.amt)||0; const amt1=parseFloat(document.getElementById('partido-amt-1').value)||0; const resto=Math.round((total-amt1)*100)/100; document.getElementById('partido-amt-2').value=resto>0?resto:''; const errEl=document.getElementById('partido-error'); if(amt1>total){errEl.textContent=`El monto (${fmtN(amt1)}) supera el total (${fmtN(total)})`;errEl.style.display='block';}else errEl.style.display='none'; }
-function closeCobroModal(){ document.getElementById('cobro-modal').classList.remove('show'); _cobroCol=null;_cobroId=null;_cobroDestino=null;_cobroPartido=false; }
+function closeCobroModal(){ document.getElementById('cobro-modal').classList.remove('show'); _cobroCol=null;_cobroId=null;_cobroDestino=null;_cobroPartido=false;_cobroEfectivoId=null; }
+
 function confirmarCobro(){
   const item=state[_cobroCol]?.find(r=>r.id===_cobroId); if(!item)return;
   const ym=state.currentMonth;
   const tipoMap={'efectivo':'Efectivo','billetera':'Billetera digital','broker':'Cuenta bancaria'};
+
   if(_cobroPartido){
     const amt1=parseFloat(document.getElementById('partido-amt-1').value)||0;
     const amt2=parseFloat(document.getElementById('partido-amt-2').value)||0;
@@ -1164,14 +1207,30 @@ function confirmarCobro(){
     state.efectivo.push({id:uid(),desc:desc1,tipo:tipoMap[dest1],cur:item.cur,amt:String(amt1),note:`Cobro partido de ${item.desc} en ${mlabel(ym)}`});
     state.efectivo.push({id:uid(),desc:desc2,tipo:tipoMap[dest2],cur:item.cur,amt:String(amt2),note:`Cobro partido de ${item.desc} en ${mlabel(ym)}`});
     showToast(`✓ Cobro dividido → ${desc1} + ${desc2}`);
+
+  } else if(_cobroDestino==='cuenta_existente' && _cobroEfectivoId){
+    // Sumar al saldo de la cuenta existente
+    const cuenta=state.efectivo.find(c=>c.id===_cobroEfectivoId);
+    if(!cuenta){alert('No se encontró la cuenta.');return;}
+    const nuevoSaldo=(parseFloat(cuenta.amt)||0)+(parseFloat(item.amt)||0);
+    cuenta.amt=String(Math.round(nuevoSaldo*100)/100);
+    state.cobros[cobroKey(_cobroCol,_cobroId,ym)]={destino:'cuenta_existente',desc:cuenta.desc,monto:item.amt,cur:item.cur,fecha:new Date().toISOString().slice(0,10)};
+    showToast(`✓ ${item.cur} ${fmtN(item.amt)} sumado a ${cuenta.desc} → nuevo saldo: ${item.cur} ${fmtN(nuevoSaldo)}`);
+
+  } else if(_cobroDestino==='cuenta_nueva'){
+    // Crear nueva cuenta
+    const nuevaDesc=document.getElementById('cobro-nueva-desc').value.trim();
+    if(!nuevaDesc){alert('Ingresá una descripción para la cuenta.');return;}
+    const nuevaTipo=document.getElementById('cobro-nueva-tipo').value;
+    const nuevaCuenta={id:uid(),desc:nuevaDesc,tipo:nuevaTipo,cur:item.cur,amt:item.amt,note:`Cobro de ${item.desc} en ${mlabel(ym)}`};
+    state.efectivo.push(nuevaCuenta);
+    state.cobros[cobroKey(_cobroCol,_cobroId,ym)]={destino:'cuenta_nueva',desc:nuevaDesc,monto:item.amt,cur:item.cur,fecha:new Date().toISOString().slice(0,10)};
+    showToast(`✓ Cobro registrado → nueva cuenta "${nuevaDesc}"`);
+
   } else {
-    if(!_cobroDestino){alert('Seleccioná un destino.');return;}
-    const destDesc=document.getElementById('cobro-dest-desc').value.trim();
-    const descMap={'efectivo':destDesc||'Cobro préstamo (efectivo)','billetera':destDesc||'Cobro préstamo (billetera)','broker':destDesc||'Cobro préstamo (broker)'};
-    state.cobros[cobroKey(_cobroCol,_cobroId,ym)]={destino:_cobroDestino,desc:destDesc||_cobroDestino,monto:item.amt,cur:item.cur,fecha:new Date().toISOString().slice(0,10)};
-    state.efectivo.push({id:uid(),desc:descMap[_cobroDestino],tipo:tipoMap[_cobroDestino],cur:item.cur,amt:item.amt,note:`Cobro de ${item.desc} en ${mlabel(ym)}`});
-    showToast(`✓ Cobro registrado → ${descMap[_cobroDestino]}`);
+    alert('Seleccioná una cuenta destino.');return;
   }
+
   const c=parseInt(item.cuotas)||0;
   if(c>1){ item.cuotas=String(c-1); }
   else {
