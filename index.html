@@ -1551,7 +1551,15 @@ function renderResumen(){
   const rescue=[...invMes].sort((a,b)=>(liqOrd[a.liq]||5)-(liqOrd[b.liq]||5)).map(r=>({name:r.desc,val:toUSD(parseFloat(r.val)||0,r.cur),liq:r.liq}));
   const sum=(arr,cur,f='amt')=>arr.filter(r=>r.cur===cur).reduce((a,r)=>a+(parseFloat(r[f])||0),0);
   const ie=state.ingresos_espo[ym]||[],tc=state.tarjetas[ym]||[],gd=state.gastos_directos[ym]||[];
-  const daActive=state.da_fijos.filter(r=>daCuotaActual(r,ym).activo);
+  // Para display del detalle: gastos_fijos y da_fijos con snapshot si mes cerrado
+  const gfDisplay=state.gastos_fijos.map(r=>{
+    const snap=cerrado&&state.cierres[ym].gf_amts&&state.cierres[ym].gf_amts[r.id];
+    return snap?{...r,amt:snap.amt,cur:snap.cur}:r;
+  });
+  const daActive=state.da_fijos.filter(r=>daCuotaActual(r,ym).activo).map(r=>{
+    const snap=cerrado&&state.cierres[ym].da_amts&&state.cierres[ym].da_amts[r.id];
+    return snap?{...r,amt:snap.amt,cur:snap.cur}:r;
+  });
   const cobradosEste=state.prestamos_out.filter(r=>isCobrado('prestamos_out',r.id,ym));
   const cobradosUSD=cobradosEste.filter(r=>r.cur==='USD').reduce((a,r)=>a+(parseFloat(r.amt)||0),0);
   const cobradosARS=cobradosEste.filter(r=>r.cur==='ARS').reduce((a,r)=>a+(parseFloat(r.amt)||0),0);
@@ -1615,7 +1623,7 @@ function renderResumen(){
       <div class="brow"><span class="blabel">Ingresos esporádicos</span><span class="bval">USD ${fmtN(sum(ie,'USD'))} / ARS ${fmtN(sum(ie,'ARS'))}</span></div>
       <div class="brow"><span class="blabel">Cuotas pendientes de cobro</span><span class="bval">USD ${fmtN(pendOut.filter(r=>r.cur==='USD').reduce((a,r)=>a+(parseFloat(r.amt)||0),0))} / ARS ${fmtN(pendOut.filter(r=>r.cur==='ARS').reduce((a,r)=>a+(parseFloat(r.amt)||0),0))}</span></div>
       ${cobradosEste.length?`<div class="brow"><span class="blabel" style="color:var(--green)">✓ Ya cobrados y acreditados</span><span class="bval" style="color:var(--green)">USD ${fmtN(cobradosUSD)} / ARS ${fmtN(cobradosARS)}</span></div>`:''}
-      <div class="brow" style="border-top:1px solid var(--border2);margin-top:4px"><span class="blabel">Gastos fijos</span><span class="bval" style="color:var(--red)">USD ${fmtN(sum(state.gastos_fijos,'USD'))} / ARS ${fmtN(sum(state.gastos_fijos,'ARS'))}</span></div>
+      <div class="brow" style="border-top:1px solid var(--border2);margin-top:4px"><span class="blabel">Gastos fijos</span><span class="bval" style="color:var(--red)">USD ${fmtN(sum(gfDisplay,'USD'))} / ARS ${fmtN(sum(gfDisplay,'ARS'))}</span></div>
       <div class="brow"><span class="blabel">Débitos automáticos activos</span><span class="bval" style="color:var(--red)">USD ${fmtN(sum(daActive,'USD'))} / ARS ${fmtN(sum(daActive,'ARS'))}</span></div>
       <div class="brow"><span class="blabel">Tarjetas de crédito</span><span class="bval" style="color:var(--red)">USD ${fmtN(sum(tc,'USD'))} / ARS ${fmtN(sum(tc,'ARS'))}</span></div>
       <div class="brow"><span class="blabel">Gastos directos (efec/billetera/transf.)</span><span class="bval" style="color:var(--red)">USD ${fmtN(sum(gd,'USD'))} / ARS ${fmtN(sum(gd,'ARS'))}</span></div>
