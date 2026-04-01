@@ -348,6 +348,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
         <div class="fg"><label>Tipo</label><select id="inv-tipo"><option value="Fondo">Fondo</option><option value="CEDEAR">CEDEAR</option><option value="Acción">Acción</option><option value="Bono">Bono</option><option value="Otro">Otro</option></select></div>
         <div class="fg"><label>Moneda</label><select id="inv-cur"><option value="USD">USD</option><option value="ARS">ARS</option></select></div>
         <div class="fg"><label>Valor estimado</label><input id="inv-val" type="number" placeholder="0"></div>
+        <div class="fg"><label>Valor inicial (opcional)</label><input id="inv-val-ini" type="number" placeholder="Lo que pusiste"></div>
+        <div class="fg"><label>Fecha inicio (opcional)</label><input id="inv-fecha-ini" type="date"></div>
         <div class="fg"><label>Liquidez</label><select id="inv-liq"><option value="Inmediata">Inmediata (24hs)</option><option value="Corto">Corto (2-5d)</option><option value="Medio">Medio (1-4sem)</option><option value="Largo">Largo (+1mes)</option></select></div>
         <div class="fg" style="flex:2"><label>Nota</label><input id="inv-note" placeholder="Opcional"></div>
         <button class="btn-add" onclick="addInversion()">Agregar</button>
@@ -788,7 +790,13 @@ function cerrarMes(ym){
   state.da_fijos.forEach(r=>{ da_amts[r.id]={amt:r.amt,cur:r.cur}; });
   const gf_amts={};
   state.gastos_fijos.forEach(r=>{ gf_amts[r.id]={amt:r.amt,cur:r.cur}; });
-  state.cierres[ym]={ inversiones: invSnapshot, efectivo_ars: ef_ars, efectivo_usd: ef_usd, fx: state.fx, da_amts, gf_amts, cerradoEn: new Date().toISOString() };
+  // Snapshot de valores de inversiones
+  const inv_vals={};
+  state.inversiones.forEach(r=>{ inv_vals[r.id]={val:r.val,cur:r.cur}; });
+  // Snapshot de saldos de seguros
+  const seg_saldos={};
+  (state.seguros_capitalizacion||[]).forEach(s=>{ seg_saldos[s.id]=s.fondo_saldo; });
+  state.cierres[ym]={ inversiones: invSnapshot, efectivo_ars: ef_ars, efectivo_usd: ef_usd, fx: state.fx, da_amts, gf_amts, inv_vals, seg_saldos, cerradoEn: new Date().toISOString() };
   saveState(); renderResumen(); showToast(`✓ Mes ${mlabel(ym)} cerrado — snapshot guardado`);
 }
 function getInversionesMes(ym){ if(isCerrado(ym)) return state.cierres[ym].inversiones; return state.inversiones; }
@@ -981,9 +989,9 @@ function addItem(col,formId,fieldIds){
 function addInversion(){
   const desc=document.getElementById('inv-desc').value.trim(); if(!desc){alert('Completá el ticker o nombre.');return;}
   checkDriveBeforeEdit();
-  const item={id:uid(),desc,broker:(document.getElementById('inv-broker').value.trim()||'Sin broker'),tipo:document.getElementById('inv-tipo').value,cur:document.getElementById('inv-cur').value,val:document.getElementById('inv-val').value,liq:document.getElementById('inv-liq').value,note:document.getElementById('inv-note').value.trim()};
+  const item={id:uid(),desc,broker:(document.getElementById('inv-broker').value.trim()||'Sin broker'),tipo:document.getElementById('inv-tipo').value,cur:document.getElementById('inv-cur').value,val:document.getElementById('inv-val').value,val_inicial:document.getElementById('inv-val-ini').value.trim()||'',fecha_inicio:document.getElementById('inv-fecha-ini').value||'',liq:document.getElementById('inv-liq').value,note:document.getElementById('inv-note').value.trim()};
   state.inversiones.push(item); saveState();
-  ['inv-desc','inv-broker','inv-val','inv-note'].forEach(id=>document.getElementById(id).value='');
+  ['inv-desc','inv-broker','inv-val','inv-val-ini','inv-fecha-ini','inv-note'].forEach(id=>document.getElementById(id).value='');
   renderAll(); showToast(`✓ ${item.desc} agregado a ${item.broker}`);
 }
 function addDA(){
@@ -1230,11 +1238,17 @@ function renderPrestamosIn(){
 // ─── RENDER INVERSIONES ────────────────────────────────────────────────
 function renderInversiones(){
   const container=document.getElementById('inv-brokers-container'); if(!container)return;
-  const inv=state.inversiones;
-  // Refrescar datalist con brokers existentes
+  const ym=state.currentMonth;
+  const cierre=isCerrado(ym)?state.cierres[ym]:null;
+  // Usar snapshot de valores si el mes está cerrado
+  const inv=state.inversiones.map(r=>{
+    const s=cierre&&cierre.inv_vals&&cierre.inv_vals[r.id];
+    return s?{...r,val:s.val,cur:s.cur}:r;
+  });
+  // Refrescar datalist con brokers existentes (siempre del estado real)
   const dl=document.getElementById('inv-broker-list');
   if(dl){
-    const brokerSet=[...new Set(inv.map(r=>r.broker||'Sin broker').filter(Boolean))];
+    const brokerSet=[...new Set(state.inversiones.map(r=>r.broker||'Sin broker').filter(Boolean))];
     dl.innerHTML=brokerSet.map(b=>`<option value="${b}">`).join('');
   }
   if(!inv.length){container.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-family:var(--mono)">Sin posiciones — agregá una abajo</div>';return;}
@@ -1244,10 +1258,22 @@ function renderInversiones(){
     const totalUSD=items.reduce((a,r)=>a+toUSD(parseFloat(r.val)||0,r.cur),0);
     const bodyId='body-br-'+broker.replace(/[^a-z0-9]/gi,'-');
     const rows=items.map(r=>{
-      const globalIdx=inv.indexOf(r);
-      return`<tr><td>${r.desc}</td><td><span class="badge bac">${r.tipo||'—'}</span></td><td>${curBadge(r.cur)}</td><td class="mono-cell">${fmtN(r.val)}</td><td>${liqBadge(r.liq)}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button class="btn-edit" onclick="moveInv('${r.id}',-1)" title="Subir" style="opacity:${globalIdx===0?0.2:1}">↑</button><button class="btn-edit" onclick="moveInv('${r.id}',1)" title="Bajar" style="opacity:${globalIdx===inv.length-1?0.2:1}">↓</button><button class="btn-edit" onclick="openEditModal('inversiones','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('inversiones','${r.id}')">×</button></td></tr>`;
+      const globalIdx=state.inversiones.findIndex(x=>x.id===r.id);
+      const valAct=parseFloat(r.val)||0;
+      const valIni=parseFloat(r.val_inicial)||0;
+      // Performance: solo si tiene valor inicial cargado
+      let perfHtml='';
+      if(valIni>0){
+        const diff=toUSD(valAct,r.cur)-toUSD(valIni,r.cur);
+        const pct=((valAct-valIni)/valIni*100);
+        const color=diff>=0?'var(--green)':'var(--red)';
+        const signo=diff>=0?'+':'';
+        perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:${color};margin-top:2px">${signo}USD ${fmtN(Math.abs(toUSD(diff,r.cur)))} (${signo}${fmtN(pct)}%)</div>`;
+      }
+      const fechaIni=r.fecha_inicio?`<div style="font-size:9px;font-family:var(--mono);color:var(--muted);margin-top:1px">desde ${new Date(r.fecha_inicio+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}</div>`:'';
+      return`<tr><td>${r.desc}</td><td><span class="badge bac">${r.tipo||'—'}</span></td><td>${curBadge(r.cur)}</td><td class="mono-cell"><div>${fmtN(r.val)}</div>${perfHtml}${fechaIni}</td><td>${liqBadge(r.liq)}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button class="btn-edit" onclick="moveInv('${r.id}',-1)" title="Subir" style="opacity:${globalIdx===0?0.2:1}">↑</button><button class="btn-edit" onclick="moveInv('${r.id}',1)" title="Bajar" style="opacity:${globalIdx===state.inversiones.length-1?0.2:1}">↓</button><button class="btn-edit" onclick="openEditModal('inversiones','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('inversiones','${r.id}')">×</button></td></tr>`;
     }).join('');
-    return`<div class="card"><div class="card-title collapsible" onclick="toggleCard('${bodyId}')"><span class="dot db"></span>${broker}<span class="card-summary">≈ USD ${fmtN(totalUSD)}</span><span class="collapse-icon">▾</span></div><div id="${bodyId}"><table class="tbl"><thead><tr><th>Ticker</th><th>Tipo</th><th>Moneda</th><th>Valor</th><th>Liquidez</th><th>Nota</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+    return`<div class="card"><div class="card-title collapsible" onclick="toggleCard('${bodyId}')"><span class="dot db"></span>${broker}<span class="card-summary">≈ USD ${fmtN(totalUSD)}</span><span class="collapse-icon">▾</span></div><div id="${bodyId}"><table class="tbl"><thead><tr><th>Ticker</th><th>Tipo</th><th>Moneda</th><th>Valor / Performance</th><th>Liquidez</th><th>Nota</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   }).join('');
 }
 
@@ -1319,7 +1345,13 @@ function segProgreso(inicio, vencimiento){
 }
 
 function renderSeguros(){
-  const seguros = state.seguros_capitalizacion || [];
+  const ym=state.currentMonth;
+  const cierre=isCerrado(ym)?state.cierres[ym]:null;
+  // Aplicar snapshot de saldos si el mes está cerrado
+  const seguros = (state.seguros_capitalizacion||[]).map(s=>{
+    const sSnap=cierre&&cierre.seg_saldos&&cierre.seg_saldos[s.id];
+    return sSnap!=null?{...s,fondo_saldo:sSnap}:s;
+  });
 
   // Totales
   let totalARS = 0, totalUSD = 0;
@@ -1713,7 +1745,7 @@ const FDEFS={
   gastos_fijos:[{k:'desc',l:'Descripción',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'day',l:'Día vto.',t:'number'},{k:'note',l:'Nota',t:'text'}],
   tarjetas:[{k:'desc',l:'Tarjeta',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'date',l:'Fecha consumo',t:'date'},{k:'note',l:'Nota',t:'text'}],
   gastos_directos:[{k:'desc',l:'Descripción',t:'text'},{k:'medio',l:'Medio',t:'select',o:['Efectivo','Billetera digital','Transferencia']},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'date',l:'Fecha',t:'date'},{k:'note',l:'Nota',t:'text'}],
-  inversiones:[{k:'desc',l:'Ticker',t:'text'},{k:'broker',l:'Broker',t:'text'},{k:'tipo',l:'Tipo',t:'select',o:['Fondo','CEDEAR','Acción','Bono','Otro']},{k:'cur',l:'Moneda',t:'select',o:['USD','ARS']},{k:'val',l:'Valor',t:'number'},{k:'liq',l:'Liquidez',t:'select',o:['Inmediata','Corto','Medio','Largo']},{k:'note',l:'Nota',t:'text'}],
+  inversiones:[{k:'desc',l:'Ticker',t:'text'},{k:'broker',l:'Broker',t:'text'},{k:'tipo',l:'Tipo',t:'select',o:['Fondo','CEDEAR','Acción','Bono','Otro']},{k:'cur',l:'Moneda',t:'select',o:['USD','ARS']},{k:'val',l:'Valor actual',t:'number'},{k:'val_inicial',l:'Valor inicial',t:'number'},{k:'fecha_inicio',l:'Fecha inicio',t:'date'},{k:'liq',l:'Liquidez',t:'select',o:['Inmediata','Corto','Medio','Largo']},{k:'note',l:'Nota',t:'text'}],
   efectivo:[{k:'desc',l:'Descripción',t:'text'},{k:'tipo',l:'Tipo',t:'select',o:['Efectivo','Billetera digital','Cuenta bancaria','Otro']},{k:'cur',l:'Moneda',t:'select',o:['USD','ARS']},{k:'amt',l:'Monto',t:'number'},{k:'note',l:'Nota',t:'text'}],
   prestamos_out:[{k:'desc',l:'Deudor',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Cuota',t:'number'},{k:'cuotas',l:'Cuotas rest.',t:'number'},{k:'day',l:'Día cobro',t:'number'},{k:'inicio',l:'Mes inicio',t:'month'},{k:'note',l:'Nota',t:'text'}],
   prestamos_in:[{k:'desc',l:'Acreedor',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'capital',l:'Capital',t:'number'},{k:'fecha_inicio',l:'Fecha inicio',t:'date'},{k:'tasa_anual',l:'Tasa anual %',t:'number'},{k:'fecha_vencimiento',l:'Fecha vencimiento',t:'date'},{k:'note',l:'Nota',t:'text'}],
