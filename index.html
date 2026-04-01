@@ -1022,6 +1022,7 @@ function addInversion(){
       existente.val=String(nuevoValTotal);
       if(nuevoValIniTotal>0) existente.val_inicial=String(nuevoValIniTotal);
       if(fechaFinal) existente.fecha_inicio=fechaFinal;
+      existente.num_compras=((parseInt(existente.num_compras)||1)+1);
     }
   } else {
     checkDriveBeforeEdit();
@@ -1049,6 +1050,7 @@ function fusionarDuplicados(broker){
       if(iniBase||iniR) base.val_inicial=String(iniBase+iniR);
       // Fecha más antigua
       if(r.fecha_inicio&&(!base.fecha_inicio||r.fecha_inicio<base.fecha_inicio)) base.fecha_inicio=r.fecha_inicio;
+      base.num_compras=((parseInt(base.num_compras)||1)+(parseInt(r.num_compras)||1));
       aEliminar.push(r.id);
     } else {
       vistos[key]=r;
@@ -1326,6 +1328,7 @@ function renderInversiones(){
       const globalIdx=state.inversiones.findIndex(x=>x.id===r.id);
       const valAct=parseFloat(r.val)||0;
       const valIni=parseFloat(r.val_inicial)||0;
+      const nCompras=parseInt(r.num_compras)||1;
       // Performance: solo si tiene valor inicial cargado
       let perfHtml='';
       if(valIni>0){
@@ -1333,7 +1336,10 @@ function renderInversiones(){
         const pct=((valAct-valIni)/valIni*100);
         const color=diff>=0?'var(--green)':'var(--red)';
         const signo=diff>=0?'+':'';
-        perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:${color};margin-top:2px">${signo}USD ${fmtN(Math.abs(toUSD(diff,r.cur)))} (${signo}${fmtN(pct)}%)</div>`;
+        const pppLabel=nCompras>1?`<span style="font-size:9px;font-family:var(--mono);color:var(--amber);background:var(--amber-dim);padding:1px 5px;border-radius:3px;margin-right:4px">PPP · ${nCompras} compras</span>`:'';
+        perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:${color};margin-top:2px">${pppLabel}${signo}USD ${fmtN(Math.abs(toUSD(valAct-valIni,r.cur)))} (${signo}${fmtN(pct)}%)</div>`;
+      } else if(nCompras>1){
+        perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--amber);margin-top:2px"><span style="background:var(--amber-dim);padding:1px 5px;border-radius:3px">PPP · ${nCompras} compras</span></div>`;
       }
       const fechaIni=r.fecha_inicio?`<div style="font-size:9px;font-family:var(--mono);color:var(--muted);margin-top:1px">desde ${new Date(r.fecha_inicio+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}</div>`:'';
       return`<tr><td>${r.desc}</td><td><span class="badge bac">${r.tipo||'—'}</span></td><td>${curBadge(r.cur)}</td><td class="mono-cell"><div>${fmtN(r.val)}</div>${perfHtml}${fechaIni}</td><td>${liqBadge(r.liq)}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button class="btn-edit" onclick="moveInv('${r.id}',-1)" title="Subir" style="opacity:${globalIdx===0?0.2:1}">↑</button><button class="btn-edit" onclick="moveInv('${r.id}',1)" title="Bajar" style="opacity:${globalIdx===state.inversiones.length-1?0.2:1}">↓</button><button class="btn-edit" onclick="openEditModal('inversiones','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('inversiones','${r.id}')">×</button></td></tr>`;
