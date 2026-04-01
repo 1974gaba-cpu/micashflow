@@ -1120,8 +1120,14 @@ function renderAlerts(){
 // ─── RENDER DA ─────────────────────────────────────────────────────────
 function renderDA(ym){
   const tb=document.getElementById('tb-da'); if(!tb)return;
-  const activos=state.da_fijos.filter(r=>{const{activo}=daCuotaActual(r,ym);return activo;});
-  const inactivos=state.da_fijos.filter(r=>{const{activo}=daCuotaActual(r,ym);return !activo;});
+  const cierre=isCerrado(ym)?state.cierres[ym]:null;
+  // Aplicar snapshot de montos si el mes está cerrado
+  const daConSnap=state.da_fijos.map(r=>{
+    const s=cierre&&cierre.da_amts&&cierre.da_amts[r.id];
+    return s?{...r,amt:s.amt,cur:s.cur}:r;
+  });
+  const activos=daConSnap.filter(r=>{const{activo}=daCuotaActual(r,ym);return activo;});
+  const inactivos=daConSnap.filter(r=>{const{activo}=daCuotaActual(r,ym);return !activo;});
   if(!state.da_fijos.length){tb.innerHTML=`<tr><td colspan="7" class="empty-state">Sin débitos automáticos</td></tr>`;return;}
   tb.innerHTML=[...activos,...inactivos].map(r=>{
     const{cuota,total,restantes,activo}=daCuotaActual(r,ym);
@@ -1274,9 +1280,14 @@ function renderAll(){
   document.getElementById('month-lbl').textContent=mlabel(ym);
   document.getElementById('tc-inp').value=state.fx;
   document.querySelectorAll('[id^="ml-"]').forEach(el=>el.textContent=mlabel(ym));
+  // Para meses cerrados, mostrar gastos fijos con montos del snapshot (read-only visual)
+  const cierre=isCerrado(ym)?state.cierres[ym]:null;
+  const gfVista = cierre&&cierre.gf_amts
+    ? state.gastos_fijos.map(r=>{ const s=cierre.gf_amts[r.id]; return s?{...r,amt:s.amt,cur:s.cur}:r; })
+    : state.gastos_fijos;
   renderTable('tb-if',state.ingresos_fijos[ym]||[],['desc','cur','amt','day','note'],'ingresos_fijos');
   renderTable('tb-ie',state.ingresos_espo[ym]||[],['desc','cur','amt','date','note'],'ingresos_espo');
-  renderTable('tb-gf',state.gastos_fijos,['desc','cur','amt','day','note'],'gastos_fijos');
+  renderTable('tb-gf',gfVista,['desc','cur','amt','day','note'],'gastos_fijos');
   renderDA(ym);
   renderTable('tb-tc',state.tarjetas[ym]||[],['desc','cur','amt','date','note'],'tarjetas');
   renderTable('tb-gd',state.gastos_directos[ym]||[],['desc','medio','cur','amt','date','note'],'gastos_directos');
