@@ -855,6 +855,33 @@ function marcarNoCobrado(){
   showToast(`⚠ ${item.desc} marcado como "en duda" — excluido del patrimonio proyectado`);
 }
 
+function deshacerCobro(col,id){
+  const ym=state.currentMonth;
+  const key=cobroKey(col,id,ym);
+  const registro=state.cobros[key];
+  if(!registro){showToast('No hay cobro registrado en este mes.');return;}
+  const item=state[col].find(r=>r.id===id); if(!item)return;
+  const monto=parseFloat(registro.monto)||parseFloat(item.amt)||0;
+  // Si fue a una cuenta existente, restar el monto del saldo
+  if(registro.destino==='cuenta_existente'){
+    const cuenta=state.efectivo.find(c=>c.desc===registro.desc&&c.cur===registro.cur);
+    if(cuenta){
+      const nuevoSaldo=Math.round(((parseFloat(cuenta.amt)||0)-monto)*100)/100;
+      cuenta.amt=String(Math.max(0,nuevoSaldo));
+      showToast(`↩ Cobro deshecho — restado de ${registro.desc}. Saldo: ${registro.cur} ${fmtN(nuevoSaldo)}`);
+    } else {
+      showToast(`↩ Cobro deshecho — revisá Efvo. & Billeteras manualmente`);
+    }
+  } else {
+    showToast(`↩ Cobro deshecho — revisá Efvo. & Billeteras para ajustar manualmente`);
+  }
+  // Restaurar la cuota (+1)
+  item.cuotas=String((parseInt(item.cuotas)||0)+1);
+  // Borrar el registro del cobro
+  delete state.cobros[key];
+  saveState();renderAll();
+}
+
 // ─── CALC MONTH ────────────────────────────────────────────────────────
 const _TODAY_YM = new Date().toISOString().slice(0,7);
 function prestamoCuotasEnMes(r, ym){
@@ -1290,14 +1317,20 @@ function renderPrestamos(col,tbodyId){
     const cobrado=isCobrado(col,r.id,ym);
     const noCobrado=isNoCobrado(col,r.id,ym);
     const enDuda=prestamEnDuda(col,r.id);
+    const registroCobro=state.cobros[cobroKey(col,r.id,ym)];
     let cuotaCell='';
     if(c===0 && !noIniciado){ cuotaCell=`<span class="badge br">Finalizado</span>`; }
     else if(noIniciado){ cuotaCell=`<span style="font-size:11px;font-family:var(--mono);color:var(--muted)">desde ${inicio}</span>`; }
     else if(noCobrado){ cuotaCell=`<span class="badge-en-duda">⚠ En duda</span>`; }
-    else { cuotaCell=`<div style="display:flex;align-items:center;gap:5px"><span class="badge ${cobrado?'bg':'ba'}">${cuotasEnMes}</span>${cobrado?`<span style="font-size:10px;font-family:var(--mono);color:var(--green)">✓ cobrado</span>`:''}</div>`; }
+    else { cuotaCell=`<div style="display:flex;align-items:center;gap:5px"><span class="badge ${cobrado?'bg':'ba'}">${cuotasEnMes}</span>${cobrado?`<span style="font-size:10px;font-family:var(--mono);color:var(--green)">✓ ${registroCobro&&registroCobro.desc?registroCobro.desc:'cobrado'}</span>`:''}</div>`; }
     const showCobrar=isOut&&cuotasEnMes>0&&!noIniciado&&!cobrado&&!noCobrado;
+    const showDeshacer=isOut&&cobrado;
     const showMinus=!isOut&&c>0;
-    const btns=showCobrar?`<button class="btn-cobrar" onclick="abrirCobro('${col}','${r.id}')">Cobrar</button>`:(showMinus?`<button onclick="decrementCuotas('${col}','${r.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:1px 7px;cursor:pointer;font-family:var(--mono)">−1</button>`:'');
+    const btns=showCobrar
+      ?`<button class="btn-cobrar" onclick="abrirCobro('${col}','${r.id}')">Cobrar</button>`
+      :showDeshacer
+        ?`<button onclick="deshacerCobro('${col}','${r.id}')" title="Deshacer cobro" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:1px 7px;cursor:pointer;font-family:var(--mono)" >↩</button>`
+        :(showMinus?`<button onclick="decrementCuotas('${col}','${r.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:1px 7px;cursor:pointer;font-family:var(--mono)">−1</button>`:'')
     const rowStyle=(c===0&&!noIniciado)||noIniciado?'opacity:0.45':enDuda?'background:#1f0d0d':'';
     return`<tr data-id="${r.id}" style="${rowStyle}"><td>${r.desc}${enDuda&&isOut?` <span style="font-size:9px;font-family:var(--mono);color:var(--red)">⚠ en duda</span>`:''}</td><td>${curBadge(r.cur)}</td><td class="mono-cell" style="${inactive?'text-decoration:line-through':''}">${fmtN(r.amt)}</td><td>${cuotaCell}</td><td>${r.day||'—'}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><span class="drag-handle" title="Arrastrar">⠿</span>${btns}<button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button></td></tr>`;
   }).join('');
