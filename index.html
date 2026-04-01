@@ -533,20 +533,36 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
       </div>
     </div>
     <div id="cobro-modo-partido" style="display:none">
+      <!-- Destino 1 -->
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px">
         <div style="font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:10px;letter-spacing:.5px;text-transform:uppercase">Destino 1</div>
-        <div class="form-row" style="gap:10px">
-          <div class="fg"><label>Destino</label><select id="partido-dest-1" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:13px;color:var(--text);font-family:var(--sans);outline:none"><option value="efectivo">💵 Efectivo</option><option value="billetera">📱 Billetera digital</option><option value="broker">📈 Broker (Cocos)</option></select></div>
-          <div class="fg"><label>Descripción</label><input id="partido-desc-1" placeholder="Ej: MP Gabriel"></div>
-          <div class="fg" style="max-width:120px"><label>Monto</label><input id="partido-amt-1" type="number" placeholder="0" oninput="calcPartidoResto()"></div>
+        <div id="partido-cuentas-1" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px"></div>
+        <div id="partido-otra-1" style="display:none">
+          <div class="form-row" style="gap:8px">
+            <div class="fg" style="flex:2"><label>Descripción</label><input id="partido-otra-desc-1" placeholder="Ej: Efectivo casa"></div>
+            <div class="fg"><label>Tipo</label><select id="partido-otra-tipo-1" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:12px;color:var(--text);font-family:var(--sans);outline:none"><option value="Efectivo">💵 Efectivo</option><option value="Billetera digital">📱 Billetera digital</option><option value="Cuenta bancaria">🏦 Banco</option></select></div>
+          </div>
+        </div>
+        <button onclick="togglePartidoOtra(1)" id="btn-partido-otra-1" style="background:none;border:1px dashed var(--border2);border-radius:5px;color:var(--muted);font-size:11px;font-family:var(--mono);padding:4px 10px;cursor:pointer;margin-top:4px">+ Otra cuenta</button>
+        <div class="form-row" style="gap:8px;margin-top:8px">
+          <div class="fg"><label>Monto (<span id="partido-cur-1">USD</span>)</label><input id="partido-amt-1" type="number" placeholder="0" oninput="calcPartidoResto()"></div>
+          <div class="fg" id="partido-tc-wrap-1" style="display:none"><label>TC (si entra en ARS)</label><input id="partido-tc-1" type="number" placeholder="Ej: 1416"></div>
         </div>
       </div>
+      <!-- Destino 2 -->
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px">
-        <div style="font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:10px;letter-spacing:.5px;text-transform:uppercase">Destino 2</div>
-        <div class="form-row" style="gap:10px">
-          <div class="fg"><label>Destino</label><select id="partido-dest-2" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:13px;color:var(--text);font-family:var(--sans);outline:none"><option value="billetera">📱 Billetera digital</option><option value="efectivo">💵 Efectivo</option><option value="broker">📈 Broker (Cocos)</option></select></div>
-          <div class="fg"><label>Descripción</label><input id="partido-desc-2" placeholder="Ej: Efectivo en casa"></div>
-          <div class="fg" style="max-width:120px"><label>Monto (resto)</label><input id="partido-amt-2" type="number" placeholder="0" readonly style="background:var(--surface2);color:var(--muted2)"></div>
+        <div style="font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:10px;letter-spacing:.5px;text-transform:uppercase">Destino 2 <span style="color:var(--muted);font-size:10px">(resto)</span></div>
+        <div id="partido-cuentas-2" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px"></div>
+        <div id="partido-otra-2" style="display:none">
+          <div class="form-row" style="gap:8px">
+            <div class="fg" style="flex:2"><label>Descripción</label><input id="partido-otra-desc-2" placeholder="Ej: Uala"></div>
+            <div class="fg"><label>Tipo</label><select id="partido-otra-tipo-2" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:12px;color:var(--text);font-family:var(--sans);outline:none"><option value="Billetera digital">📱 Billetera digital</option><option value="Efectivo">💵 Efectivo</option><option value="Cuenta bancaria">🏦 Banco</option></select></div>
+          </div>
+        </div>
+        <button onclick="togglePartidoOtra(2)" id="btn-partido-otra-2" style="background:none;border:1px dashed var(--border2);border-radius:5px;color:var(--muted);font-size:11px;font-family:var(--mono);padding:4px 10px;cursor:pointer;margin-top:4px">+ Otra cuenta</button>
+        <div class="form-row" style="gap:8px;margin-top:8px">
+          <div class="fg"><label>Monto resto (<span id="partido-cur-2">USD</span>)</label><input id="partido-amt-2" type="number" placeholder="0" readonly style="background:var(--surface2);color:var(--muted2)"></div>
+          <div class="fg" id="partido-tc-wrap-2" style="display:none"><label>TC (si entra en ARS)</label><input id="partido-tc-2" type="number" placeholder="Ej: 1416"></div>
         </div>
       </div>
       <div id="partido-error" style="font-size:11px;color:var(--red);font-family:var(--mono);display:none;margin-bottom:6px"></div>
@@ -1211,9 +1227,103 @@ function toggleOtraCuenta(){
 
 function selectCobroDestino(d){ _cobroDestino=d; } // legacy, ya no se usa en modo simple
 
-function activarPagoPartido(){ _cobroPartido=true; document.getElementById('cobro-modo-simple').style.display='none'; document.getElementById('cobro-modo-partido').style.display='block'; const item=state[_cobroCol]?.find(r=>r.id===_cobroId); if(item) document.getElementById('partido-amt-1').placeholder=`Total: ${fmtN(item.amt)}`; }
+// Estado partido
+let _partidoEfId1=null,_partidoEfId2=null,_partidoOtra1=false,_partidoOtra2=false;
+
+function renderPartidoCuentas(slot, cur){
+  const listEl=document.getElementById(`partido-cuentas-${slot}`);
+  const curLabel=document.getElementById(`partido-cur-${slot}`);
+  if(curLabel) curLabel.textContent=cur;
+  const iconMap={'Efectivo':'💵','Billetera digital':'📱','Cuenta bancaria':'🏦','Otro':'💰'};
+  // Mostrar todas las cuentas (mismo cur y diferente cur para conversión TC)
+  const cuentas=state.efectivo;
+  if(!cuentas.length){listEl.innerHTML='';return;}
+  listEl.innerHTML=cuentas.map(c=>{
+    const esDifCur=c.cur!==cur;
+    const label=esDifCur?`${c.desc} <span style="font-size:9px;color:var(--amber)">(entra en ${c.cur})</span>`:c.desc;
+    return`<div class="cobro-cuenta-opt" data-id="${c.id}" data-cur="${c.cur}" onclick="selectPartidoCuenta(${slot},'${c.id}','${c.cur}')" style="display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 12px;cursor:pointer;transition:.15s">
+      <span>${iconMap[c.tipo]||'💰'}</span>
+      <div style="flex:1;font-size:12px">${label}</div>
+      <span style="font-size:10px;font-family:var(--mono);color:var(--muted)">${c.cur} ${fmtN(c.amt)}</span>
+      <span style="color:var(--border2)">○</span>
+    </div>`;
+  }).join('');
+}
+
+function selectPartidoCuenta(slot, efId, cuentaCur){
+  if(slot===1){_partidoEfId1=efId;}else{_partidoEfId2=efId;}
+  const cur=state[`prestamos_out`]||[];// no usado aquí
+  // Mostrar TC si la moneda de la cuenta es diferente al cobro
+  const item=state[_cobroCol]?.find(r=>r.id===_cobroId);
+  const cobroCur=item?item.cur:'USD';
+  const tcWrap=document.getElementById(`partido-tc-wrap-${slot}`);
+  if(tcWrap) tcWrap.style.display=cuentaCur!==cobroCur?'block':'none';
+  // Marcar selección visual
+  document.querySelectorAll(`#partido-cuentas-${slot} .cobro-cuenta-opt`).forEach(el=>{
+    const sel=el.dataset.id===efId;
+    el.style.borderColor=sel?'var(--green)':'var(--border)';
+    el.style.background=sel?'var(--green-dim)':'var(--surface)';
+    el.querySelector('span:last-child').textContent=sel?'✓':'○';
+  });
+  // Ocultar form "otra"
+  document.getElementById(`partido-otra-${slot}`).style.display='none';
+  document.getElementById(`btn-partido-otra-${slot}`).textContent='+ Otra cuenta';
+  if(slot===1) _partidoOtra1=false; else _partidoOtra2=false;
+}
+
+function togglePartidoOtra(slot){
+  const form=document.getElementById(`partido-otra-${slot}`);
+  const btn=document.getElementById(`btn-partido-otra-${slot}`);
+  const isOpen=form.style.display!=='none';
+  form.style.display=isOpen?'none':'block';
+  btn.textContent=isOpen?'+ Otra cuenta':'× Cancelar';
+  if(!isOpen){
+    // Deseleccionar cuentas existentes del slot
+    document.querySelectorAll(`#partido-cuentas-${slot} .cobro-cuenta-opt`).forEach(el=>{el.style.borderColor='var(--border)';el.style.background='var(--surface)';el.querySelector('span:last-child').textContent='○';});
+    if(slot===1){_partidoEfId1=null;_partidoOtra1=true;}else{_partidoEfId2=null;_partidoOtra2=true;}
+    // Mostrar TC para otra cuenta
+    const item=state[_cobroCol]?.find(r=>r.id===_cobroId);
+    const cobroCur=item?item.cur:'USD';
+    const tcWrap=document.getElementById(`partido-tc-wrap-${slot}`);
+    if(tcWrap) tcWrap.style.display='block'; // siempre mostrar TC en otra cuenta por si acaso
+  } else {
+    if(slot===1) _partidoOtra1=false; else _partidoOtra2=false;
+    document.getElementById(`partido-tc-wrap-${slot}`).style.display='none';
+  }
+}
+
+function activarPagoPartido(){
+  _cobroPartido=true;_partidoEfId1=null;_partidoEfId2=null;_partidoOtra1=false;_partidoOtra2=false;
+  document.getElementById('cobro-modo-simple').style.display='none';
+  document.getElementById('cobro-modo-partido').style.display='block';
+  const item=state[_cobroCol]?.find(r=>r.id===_cobroId);
+  const cur=item?item.cur:'USD';
+  document.getElementById('partido-amt-1').value='';
+  document.getElementById('partido-amt-2').value='';
+  document.getElementById('partido-amt-1').placeholder=`Total: ${item?fmtN(item.amt):'0'}`;
+  document.getElementById('partido-error').style.display='none';
+  document.getElementById('partido-tc-wrap-1').style.display='none';
+  document.getElementById('partido-tc-wrap-2').style.display='none';
+  document.getElementById('partido-otra-1').style.display='none';
+  document.getElementById('partido-otra-2').style.display='none';
+  document.getElementById('btn-partido-otra-1').textContent='+ Otra cuenta';
+  document.getElementById('btn-partido-otra-2').textContent='+ Otra cuenta';
+  renderPartidoCuentas(1, cur);
+  renderPartidoCuentas(2, cur);
+}
+
 function desactivarPagoPartido(){ _cobroPartido=false; document.getElementById('cobro-modo-simple').style.display='block'; document.getElementById('cobro-modo-partido').style.display='none'; }
-function calcPartidoResto(){ const item=state[_cobroCol]?.find(r=>r.id===_cobroId); if(!item)return; const total=parseFloat(item.amt)||0; const amt1=parseFloat(document.getElementById('partido-amt-1').value)||0; const resto=Math.round((total-amt1)*100)/100; document.getElementById('partido-amt-2').value=resto>0?resto:''; const errEl=document.getElementById('partido-error'); if(amt1>total){errEl.textContent=`El monto (${fmtN(amt1)}) supera el total (${fmtN(total)})`;errEl.style.display='block';}else errEl.style.display='none'; }
+
+function calcPartidoResto(){
+  const item=state[_cobroCol]?.find(r=>r.id===_cobroId); if(!item)return;
+  const total=parseFloat(item.amt)||0;
+  const amt1=parseFloat(document.getElementById('partido-amt-1').value)||0;
+  const resto=Math.round((total-amt1)*100)/100;
+  document.getElementById('partido-amt-2').value=resto>0?resto:'';
+  const errEl=document.getElementById('partido-error');
+  if(amt1>total){errEl.textContent=`El monto (${fmtN(amt1)}) supera el total (${fmtN(total)})`;errEl.style.display='block';}
+  else errEl.style.display='none';
+}
 function closeCobroModal(){ document.getElementById('cobro-modal').classList.remove('show'); _cobroCol=null;_cobroId=null;_cobroDestino=null;_cobroPartido=false;_cobroEfectivoId=null; }
 
 function confirmarCobro(){
@@ -1225,14 +1335,52 @@ function confirmarCobro(){
     const amt1=parseFloat(document.getElementById('partido-amt-1').value)||0;
     const amt2=parseFloat(document.getElementById('partido-amt-2').value)||0;
     const total=parseFloat(item.amt)||0;
-    const dest1=document.getElementById('partido-dest-1').value; const dest2=document.getElementById('partido-dest-2').value;
-    const desc1=document.getElementById('partido-desc-1').value.trim()||`Cobro ${item.desc} (1)`;
-    const desc2=document.getElementById('partido-desc-2').value.trim()||`Cobro ${item.desc} (2)`;
     if(amt1<=0){alert('Ingresá el monto del destino 1.');return;}
     if(Math.abs(amt1+amt2-total)>0.01){alert(`La suma (${fmtN(amt1+amt2)}) no coincide con el total (${fmtN(total)}).`);return;}
+    if(!_partidoEfId1&&!_partidoOtra1){alert('Seleccioná una cuenta para el Destino 1.');return;}
+    if(!_partidoEfId2&&!_partidoOtra2){alert('Seleccioná una cuenta para el Destino 2.');return;}
+
+    // Procesar destino 1
+    const tc1=parseFloat(document.getElementById('partido-tc-1').value)||state.fx;
+    let desc1='';
+    if(_partidoEfId1){
+      const c1=state.efectivo.find(x=>x.id===_partidoEfId1);
+      if(c1){
+        const entra1=c1.cur!==item.cur?amt1*tc1:amt1;
+        c1.amt=String(Math.round(((parseFloat(c1.amt)||0)+entra1)*100)/100);
+        desc1=c1.desc+(c1.cur!==item.cur?` (TC ${fmtN(tc1)})`:''  );
+      }
+    } else {
+      const d1=document.getElementById('partido-otra-desc-1').value.trim()||`Cobro ${item.desc} (1)`;
+      const t1=document.getElementById('partido-otra-tipo-1').value;
+      const tc1v=parseFloat(document.getElementById('partido-tc-1').value)||0;
+      const monedaEnt=tc1v>0?'ARS':item.cur;
+      const montoEnt=tc1v>0?String(Math.round(amt1*tc1v*100)/100):String(amt1);
+      state.efectivo.push({id:uid(),desc:d1,tipo:t1,cur:monedaEnt,amt:montoEnt,note:`Cobro partido de ${item.desc} en ${mlabel(ym)}`});
+      desc1=d1;
+    }
+
+    // Procesar destino 2
+    const tc2=parseFloat(document.getElementById('partido-tc-2').value)||state.fx;
+    let desc2='';
+    if(_partidoEfId2){
+      const c2=state.efectivo.find(x=>x.id===_partidoEfId2);
+      if(c2){
+        const entra2=c2.cur!==item.cur?amt2*tc2:amt2;
+        c2.amt=String(Math.round(((parseFloat(c2.amt)||0)+entra2)*100)/100);
+        desc2=c2.desc+(c2.cur!==item.cur?` (TC ${fmtN(tc2)})`:'');
+      }
+    } else {
+      const d2=document.getElementById('partido-otra-desc-2').value.trim()||`Cobro ${item.desc} (2)`;
+      const t2=document.getElementById('partido-otra-tipo-2').value;
+      const tc2v=parseFloat(document.getElementById('partido-tc-2').value)||0;
+      const monedaEnt2=tc2v>0?'ARS':item.cur;
+      const montoEnt2=tc2v>0?String(Math.round(amt2*tc2v*100)/100):String(amt2);
+      state.efectivo.push({id:uid(),desc:d2,tipo:t2,cur:monedaEnt2,amt:montoEnt2,note:`Cobro partido de ${item.desc} en ${mlabel(ym)}`});
+      desc2=d2;
+    }
+
     state.cobros[cobroKey(_cobroCol,_cobroId,ym)]={destino:'partido',desc:`${desc1} + ${desc2}`,monto:item.amt,cur:item.cur,fecha:new Date().toISOString().slice(0,10)};
-    state.efectivo.push({id:uid(),desc:desc1,tipo:tipoMap[dest1],cur:item.cur,amt:String(amt1),note:`Cobro partido de ${item.desc} en ${mlabel(ym)}`});
-    state.efectivo.push({id:uid(),desc:desc2,tipo:tipoMap[dest2],cur:item.cur,amt:String(amt2),note:`Cobro partido de ${item.desc} en ${mlabel(ym)}`});
     showToast(`✓ Cobro dividido → ${desc1} + ${desc2}`);
 
   } else if(_cobroDestino==='cuenta_existente' && _cobroEfectivoId){
