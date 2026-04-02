@@ -597,11 +597,30 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 
     <!-- Panel Gasto -->
     <div id="usar-panel-gasto">
-      <div class="form-row" style="gap:10px">
-        <div class="fg" style="flex:2"><label>Descripción</label><input id="usar-gasto-desc" placeholder="Ej: Supermercado, Nafta"></div>
-        <div class="fg"><label>Monto (<span id="usar-gasto-cur"></span>)</label><input id="usar-gasto-amt" type="number" placeholder="0" min="0" step="0.01"></div>
+      <!-- Sub-modo toggle -->
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button id="usar-gasto-modo-btn-fijo" onclick="setGastoModo('fijo')" style="flex:1;padding:7px;border-radius:6px;font-size:12px;font-family:var(--mono);cursor:pointer;border:1px solid var(--green);background:var(--green-dim);color:var(--green)">✓ Pagar gasto fijo</button>
+        <button id="usar-gasto-modo-btn-libre" onclick="setGastoModo('libre')" style="flex:1;padding:7px;border-radius:6px;font-size:12px;font-family:var(--mono);cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--muted2)">+ Gasto libre</button>
       </div>
-      <div class="form-hint" style="margin-top:8px">↳ Se registra en Gastos Directos y se descuenta del saldo.</div>
+      <!-- Sub-modo: pagar gasto fijo -->
+      <div id="usar-gasto-fijo-form">
+        <div class="form-row" style="gap:10px">
+          <div class="fg" style="flex:2">
+            <label>Gasto fijo</label>
+            <select id="usar-gf-select" onchange="precargarMontoGF()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:13px;color:var(--text);font-family:var(--sans);outline:none"></select>
+          </div>
+          <div class="fg"><label>Monto (<span id="usar-gasto-cur"></span>)</label><input id="usar-gasto-amt" type="number" placeholder="0" min="0" step="0.01"></div>
+        </div>
+        <div class="form-hint" style="margin-top:8px">↳ Marca el gasto fijo como pagado (grisado) y descuenta el saldo. <strong style="color:var(--green)">No duplica en gastos.</strong></div>
+      </div>
+      <!-- Sub-modo: gasto libre -->
+      <div id="usar-gasto-libre-form" style="display:none">
+        <div class="form-row" style="gap:10px">
+          <div class="fg" style="flex:2"><label>Descripción</label><input id="usar-gasto-desc" placeholder="Ej: Supermercado, Nafta"></div>
+          <div class="fg"><label>Monto (<span id="usar-gasto-cur2"></span>)</label><input id="usar-gasto-amt2" type="number" placeholder="0" min="0" step="0.01"></div>
+        </div>
+        <div class="form-hint" style="margin-top:8px">↳ Se registra en Gastos Directos y se descuenta del saldo.</div>
+      </div>
     </div>
 
     <!-- Panel Cancelar préstamo propio -->
@@ -905,6 +924,7 @@ let state={
   gastos_fijos:[],da_fijos:[],tarjetas:{},
   inversiones:[],efectivo:[],
   gastos_directos:{},
+  gf_pagos:{},
   prestamos_out:[],prestamos_in:[],
   prestamos_cancelados:[],
   cobros:{},
@@ -914,7 +934,7 @@ let state={
   retiro_jubilacion:{saldo:2882166.65, fecha_snapshot:'2026-03-01', edad_cobro:65, prima_mensual_ars:76008, dia_debito:13},
   fx:1420,currentMonth:new Date().toISOString().slice(0,7)
 };
-const STATE_KEYS=['ingresos_fijos','ingresos_espo','gastos_fijos','da_fijos','tarjetas','gastos_directos','inversiones','efectivo','prestamos_out','prestamos_in','prestamos_cancelados','cobros','cierres','notas','seguros_capitalizacion','retiro_jubilacion','fx','currentMonth'];
+const STATE_KEYS=['ingresos_fijos','ingresos_espo','gastos_fijos','da_fijos','tarjetas','gastos_directos','gf_pagos','inversiones','efectivo','prestamos_out','prestamos_in','prestamos_cancelados','cobros','cierres','notas','seguros_capitalizacion','retiro_jubilacion','fx','currentMonth'];
 function saveState(){ state._savedAt=new Date().toISOString(); STATE_KEYS.forEach(k=>lsSet(k,state[k])); lsSet('_savedAt',state._savedAt); driveSaveDebounced(); }
 
 // ─── DA HELPERS ────────────────────────────────────────────────────────
@@ -1680,6 +1700,32 @@ function renderEfectivoTotal(){
 }
 
 // ─── RENDER EFECTIVO TABLE (con botón Usar) ────────────────────────────
+// ─── RENDER GASTOS FIJOS TABLE (con estado pagado) ────────────────────
+function renderGastosFijosTable(rows){
+  const tb=document.getElementById('tb-gf'); if(!tb)return;
+  const ym=state.currentMonth; const col='gastos_fijos';
+  const pagados=(state.gf_pagos&&state.gf_pagos[ym])||[];
+  if(!rows||!rows.length){tb.innerHTML=`<tr><td colspan="7" class="empty-state">Sin entradas todavía</td></tr>`;return;}
+  tb.innerHTML=rows.map((r,idx)=>{
+    const pagado=pagados.includes(r.id);
+    const rowStyle=pagado?'opacity:0.45;':'';
+    const badge=pagado?`<span class="badge bg" style="font-size:9px;padding:1px 5px">✓ pagado</span>`:'';
+    return`<tr style="${rowStyle}">
+      <td>${r.desc||''} ${badge}</td>
+      <td>${curBadge(r.cur)}</td>
+      <td class="mono-cell">${fmtN(r.amt)}</td>
+      <td>${r.day||'—'}</td>
+      <td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn-edit" onclick="moveItem('${col}','${r.id}',-1)" title="Subir" style="opacity:${idx===0?0.2:1}">↑</button>
+        <button class="btn-edit" onclick="moveItem('${col}','${r.id}',1)" title="Bajar" style="opacity:${idx===rows.length-1?0.2:1}">↓</button>
+        <button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button>
+        <button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
 function renderEfectivoTable(){
   const tb=document.getElementById('tb-ef'); if(!tb)return;
   const rows=state.efectivo; const col='efectivo'; const cols=['desc','tipo','cur','amt','note'];
@@ -1701,7 +1747,7 @@ function renderEfectivoTable(){
 }
 
 // ─── USAR MODAL ────────────────────────────────────────────────────────
-let _usarCuentaId=null, _usarTab='gasto';
+let _usarCuentaId=null, _usarTab='gasto', _usarGastoModo='fijo';
 
 function abrirUsar(id){
   if(isCerrado(state.currentMonth)){showToast('⚠ No se puede operar en un mes cerrado');return;}
@@ -1710,7 +1756,16 @@ function abrirUsar(id){
   document.getElementById('usar-cuenta-lbl').textContent=cuenta.desc;
   document.getElementById('usar-saldo-lbl').textContent=`${cuenta.cur} ${fmtN(cuenta.amt)}`;
   // Moneda labels
-  ['usar-gasto-cur','usar-cancel-cur','usar-inv-cur','usar-po-cur'].forEach(id=>document.getElementById(id).textContent=cuenta.cur);
+  ['usar-gasto-cur','usar-gasto-cur2','usar-cancel-cur','usar-inv-cur','usar-po-cur'].forEach(eid=>{const el=document.getElementById(eid);if(el)el.textContent=cuenta.cur;});
+  // Gastos fijos select (filtrados por moneda + no pagados este mes)
+  const ym=state.currentMonth;
+  const pagados=(state.gf_pagos&&state.gf_pagos[ym])||[];
+  const selGF=document.getElementById('usar-gf-select');
+  const gfDisp=state.gastos_fijos.filter(r=>r.cur===cuenta.cur&&!pagados.includes(r.id));
+  selGF.innerHTML=gfDisp.length
+    ?gfDisp.map(r=>`<option value="${r.id}" data-amt="${r.amt}">${r.desc} — ${fmtN(r.amt)}</option>`).join('')
+    :`<option value="">— Sin gastos fijos pendientes en ${cuenta.cur} —</option>`;
+  precargarMontoGF();
   // Inversiones select
   const selInv=document.getElementById('usar-inv-select');
   selInv.innerHTML=state.inversiones.filter(r=>r.cur===cuenta.cur).map(r=>`<option value="${r.id}">${r.desc} · ${r.broker||'—'} (${fmtN(r.val)})</option>`).join('')+`<option value="_nueva">+ Nueva posición</option>`;
@@ -1723,11 +1778,35 @@ function abrirUsar(id){
   // Mes actual como default en inicio
   document.getElementById('usar-po-inicio').value=state.currentMonth;
   // Limpiar campos
-  ['usar-gasto-desc','usar-gasto-amt','usar-cancel-amt','usar-inv-amt','usar-po-desc','usar-po-amt'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['usar-gasto-amt','usar-cancel-amt','usar-inv-amt','usar-po-desc','usar-po-amt'].forEach(eid=>{const el=document.getElementById(eid);if(el)el.value='';});
+  const descEl=document.getElementById('usar-gasto-desc'); if(descEl)descEl.value='';
+  const amt2El=document.getElementById('usar-gasto-amt2'); if(amt2El)amt2El.value='';
   document.getElementById('usar-po-cuotas').value='1';
   document.getElementById('usar-inv-nueva-form').style.display='none';
+  setGastoModo('fijo');
   setUsarTab('gasto');
   document.getElementById('usar-modal').style.display='flex';
+}
+
+function precargarMontoGF(){
+  const sel=document.getElementById('usar-gf-select');
+  const amtEl=document.getElementById('usar-gasto-amt');
+  if(!sel||!amtEl)return;
+  const opt=sel.options[sel.selectedIndex];
+  if(opt&&opt.dataset.amt) amtEl.value=opt.dataset.amt;
+}
+
+function setGastoModo(modo){
+  _usarGastoModo=modo;
+  const esFijo=modo==='fijo';
+  document.getElementById('usar-gasto-fijo-form').style.display=esFijo?'block':'none';
+  document.getElementById('usar-gasto-libre-form').style.display=esFijo?'none':'block';
+  document.getElementById('usar-gasto-modo-btn-fijo').style.cssText=esFijo
+    ?'flex:1;padding:7px;border-radius:6px;font-size:12px;font-family:var(--mono);cursor:pointer;border:1px solid var(--green);background:var(--green-dim);color:var(--green)'
+    :'flex:1;padding:7px;border-radius:6px;font-size:12px;font-family:var(--mono);cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--muted2)';
+  document.getElementById('usar-gasto-modo-btn-libre').style.cssText=esFijo
+    ?'flex:1;padding:7px;border-radius:6px;font-size:12px;font-family:var(--mono);cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--muted2)'
+    :'flex:1;padding:7px;border-radius:6px;font-size:12px;font-family:var(--mono);cursor:pointer;border:1px solid var(--green);background:var(--green-dim);color:var(--green)';
 }
 
 function setUsarTab(tab){
@@ -1754,16 +1833,32 @@ function confirmarUsar(){
   const saldo=parseFloat(cuenta.amt)||0;
 
   if(_usarTab==='gasto'){
-    const desc=document.getElementById('usar-gasto-desc').value.trim();
-    const monto=parseFloat(document.getElementById('usar-gasto-amt').value);
-    if(!desc){showToast('⚠ Ingresá una descripción');return;}
-    if(!monto||monto<=0){showToast('⚠ Ingresá un monto válido');return;}
-    if(monto>saldo){showToast('⚠ Monto supera el saldo disponible');return;}
-    if(!state.gastos_directos[ym])state.gastos_directos[ym]=[];
-    state.gastos_directos[ym].push({id:uid(),desc,medio:cuenta.tipo||'Efectivo',cur:cuenta.cur,amt:String(monto),date:new Date().toISOString().slice(0,10),note:`Uso de ${cuenta.desc}`});
-    cuenta.amt=String(saldo-monto);
-    saveState();renderAll();showToast('✓ Gasto registrado y saldo actualizado');closeUsarModal();
-
+    if(_usarGastoModo==='fijo'){
+      // Pagar gasto fijo existente
+      const gfId=document.getElementById('usar-gf-select').value;
+      const monto=parseFloat(document.getElementById('usar-gasto-amt').value);
+      if(!gfId){showToast('⚠ No hay gasto fijo disponible para pagar');return;}
+      if(!monto||monto<=0){showToast('⚠ Ingresá un monto válido');return;}
+      if(monto>saldo){showToast('⚠ Monto supera el saldo disponible');return;}
+      // Marcar como pagado este mes
+      if(!state.gf_pagos)state.gf_pagos={};
+      if(!state.gf_pagos[ym])state.gf_pagos[ym]=[];
+      if(!state.gf_pagos[ym].includes(gfId))state.gf_pagos[ym].push(gfId);
+      // Descontar saldo
+      cuenta.amt=String(saldo-monto);
+      saveState();renderAll();showToast('✓ Gasto fijo marcado como pagado y saldo descontado');closeUsarModal();
+    }else{
+      // Gasto libre → gastos directos
+      const desc=document.getElementById('usar-gasto-desc').value.trim();
+      const monto=parseFloat(document.getElementById('usar-gasto-amt2').value);
+      if(!desc){showToast('⚠ Ingresá una descripción');return;}
+      if(!monto||monto<=0){showToast('⚠ Ingresá un monto válido');return;}
+      if(monto>saldo){showToast('⚠ Monto supera el saldo disponible');return;}
+      if(!state.gastos_directos[ym])state.gastos_directos[ym]=[];
+      state.gastos_directos[ym].push({id:uid(),desc,medio:cuenta.tipo||'Efectivo',cur:cuenta.cur,amt:String(monto),date:new Date().toISOString().slice(0,10),note:`Uso de ${cuenta.desc}`});
+      cuenta.amt=String(saldo-monto);
+      saveState();renderAll();showToast('✓ Gasto registrado y saldo actualizado');closeUsarModal();
+    }
   }else if(_usarTab==='cancelar'){
     const piId=document.getElementById('usar-pi-select').value;
     const monto=parseFloat(document.getElementById('usar-cancel-amt').value);
@@ -1851,7 +1946,7 @@ function renderAll(){
     : state.gastos_fijos;
   renderTable('tb-if',state.ingresos_fijos[ym]||[],['desc','cur','amt','day','note'],'ingresos_fijos');
   renderTable('tb-ie',state.ingresos_espo[ym]||[],['desc','cur','amt','date','note'],'ingresos_espo');
-  renderTable('tb-gf',gfVista,['desc','cur','amt','day','note'],'gastos_fijos');
+  renderGastosFijosTable(gfVista);
   renderDA(ym);
   renderTable('tb-tc',state.tarjetas[ym]||[],['desc','cur','amt','date','note'],'tarjetas');
   renderTable('tb-gd',state.gastos_directos[ym]||[],['desc','medio','cur','amt','date','note'],'gastos_directos');
@@ -2334,6 +2429,7 @@ function importData(event){
       if(loaded===0){alert('Archivo sin datos reconocibles.');return;}
       if(state.da_fijos&&state.da_fijos.length){ state.da_fijos.forEach(r=>{ if(!r.inicio)r.inicio=state.currentMonth; if(!r.cuotas_total&&r.cuotas!==undefined){r.cuotas_total=r.cuotas;delete r.cuotas;} }); }
       if(!state.seguros_capitalizacion) state.seguros_capitalizacion=[];
+      if(!state.gf_pagos) state.gf_pagos={};
       // migrar ingresos_fijos de array a objeto mensual si viene del formato viejo
       if(Array.isArray(state.ingresos_fijos)){
         const ym=state.currentMonth;
@@ -2372,6 +2468,7 @@ document.addEventListener('DOMContentLoaded',function(){
   const localLoaded = lsGet('__drive_loaded');
   if(localLoaded){ STATE_KEYS.forEach(k=>{ const v=lsGet(k); if(v!==null) state[k]=v; }); const savedAt=lsGet('_savedAt'); if(savedAt) state._savedAt=savedAt; }
   if(!state.seguros_capitalizacion) state.seguros_capitalizacion=[];
+  if(!state.gf_pagos) state.gf_pagos={};
 
   document.getElementById('tc-inp').value=state.fx;
   document.getElementById('nota-periodo').value=state.currentMonth;
