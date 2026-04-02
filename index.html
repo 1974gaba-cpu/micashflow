@@ -2249,6 +2249,9 @@ function renderResumen(){
   const cobradosUSD=cobradosEste.filter(r=>r.cur==='USD').reduce((a,r)=>a+(parseFloat(r.amt)||0),0);
   const cobradosARS=cobradosEste.filter(r=>r.cur==='ARS').reduce((a,r)=>a+(parseFloat(r.amt)||0),0);
   const pendOut=state.prestamos_out.filter(r=>prestamoCuotasEnMes(r,ym)>0&&!isCobrado('prestamos_out',r.id,ym));
+  const pendOutSinDuda=pendOut.filter(r=>!prestamEnDuda('prestamos_out',r.id));
+  const pendUSD=pendOutSinDuda.filter(r=>r.cur==='USD').reduce((a,r)=>a+(parseFloat(r.amt)||0),0);
+  const pendARS=pendOutSinDuda.filter(r=>r.cur==='ARS').reduce((a,r)=>a+(parseFloat(r.amt)||0),0);
   const cobrosFuturos=[];
   let cursor=nextYM(ym); let maxMeses=36;
   while(maxMeses-->0){
@@ -2295,12 +2298,42 @@ function renderResumen(){
   document.getElementById('res-content').innerHTML=`
     ${avisoNoCerrado}${cierreInfo}
     <div class="sg">
-      <div class="sc"><div class="slabel">Ingresos del mes</div><div class="samt neu">USD ${fmtN(ing_usd)}</div><div class="ssub">+ ARS ${fmtN(ing_ars)}</div></div>
-      <div class="sc"><div class="slabel">Gastos del mes</div><div class="samt neu">USD ${fmtN(gas_usd)}</div><div class="ssub">+ ARS ${fmtN(gas_ars)}</div></div>
+      <div class="sc">
+        <div class="slabel">Ingresos del mes</div>
+        <div class="samt neu" style="font-size:22px">ARS ${fmtN(ing_ars)}</div>
+        <div class="ssub" style="margin-top:5px">≈ USD ${fmtN(ing_ars/fx)} al TC ${fmtN(fx)}</div>
+        <div style="font-size:13px;font-family:var(--mono);color:var(--blue);margin-top:4px">USD ${fmtN(ing_usd)} en divisa</div>
+      </div>
+      <div class="sc">
+        <div class="slabel">Gastos del mes</div>
+        <div class="samt neu" style="font-size:22px;color:var(--red)">ARS ${fmtN(gas_ars)}</div>
+        <div class="ssub" style="margin-top:5px">≈ USD ${fmtN(gas_ars/fx)} al TC ${fmtN(fx)}</div>
+        <div style="font-size:13px;font-family:var(--mono);color:var(--red);margin-top:4px">USD ${fmtN(gas_usd)} en divisa</div>
+      </div>
     </div>
     <div class="sg">
-      <div class="sc ${saldo_usd>=0?'hg':'hr'}"><div class="slabel">${saldo_usd>=0?'✦ Sobrante':'⚠ Faltante'} en USD</div><div class="samt ${saldo_usd>=0?'pos':'neg'}">${saldo_usd>=0?'+':''}USD ${fmtN(Math.abs(saldo_usd))}</div><div class="ssub">${saldo_usd>=0?'disponible para reinvertir':'a cubrir'}</div></div>
-      <div class="sc ${saldo_ars>=0?'hg':'hr'}"><div class="slabel">${saldo_ars>=0?'✦ Sobrante':'⚠ Faltante'} en ARS</div><div class="samt ${saldo_ars>=0?'pos':'neg'}">${saldo_ars>=0?'+':''}ARS ${fmtN(Math.abs(saldo_ars))}</div><div class="ssub">≈ USD ${fmtN(Math.abs(saldo_ars/fx))}</div></div>
+      <div class="sc ${saldo_usd>=0?'hg':'hr'}">
+        <div class="slabel">${saldo_usd>=0?'✦ Sobrante':'⚠ Faltante'} en USD</div>
+        <div class="samt ${saldo_usd>=0?'pos':'neg'}">${saldo_usd>=0?'+':''}USD ${fmtN(Math.abs(saldo_usd))}</div>
+        <div class="ssub">${saldo_usd>=0?'disponible para reinvertir':'a cubrir'}</div>
+        ${pendUSD>0?`<div style="border-top:1px solid #2a2d3555;margin:10px 0 8px"></div>
+        <div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Si se cobran todas las cuotas</div>
+        <div style="font-size:13px;font-family:var(--mono);color:var(--green)">+ USD ${fmtN(pendUSD)} pendientes</div>
+        <div style="font-size:12px;font-family:var(--mono);margin-top:5px;padding:4px 8px;border-radius:5px;background:${(saldo_usd+pendUSD)>=0?'var(--green-dim)':'var(--red-dim)'};color:${(saldo_usd+pendUSD)>=0?'var(--green)':'var(--red)'}">
+          ${(saldo_usd+pendUSD)>=0?'Sobraría':'Faltaría'} USD ${fmtN(Math.abs(saldo_usd+pendUSD))}
+        </div>`:''}
+      </div>
+      <div class="sc ${saldo_ars>=0?'hg':'hr'}">
+        <div class="slabel">${saldo_ars>=0?'✦ Sobrante':'⚠ Faltante'} en ARS</div>
+        <div class="samt ${saldo_ars>=0?'pos':'neg'}">${saldo_ars>=0?'+':''}ARS ${fmtN(Math.abs(saldo_ars))}</div>
+        <div class="ssub">≈ USD ${fmtN(Math.abs(saldo_ars/fx))}</div>
+        ${pendARS>0?`<div style="border-top:1px solid #2a2d3555;margin:10px 0 8px"></div>
+        <div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Si se cobran todas las cuotas</div>
+        <div style="font-size:13px;font-family:var(--mono);color:var(--green)">+ ARS ${fmtN(pendARS)} pendientes</div>
+        <div style="font-size:12px;font-family:var(--mono);margin-top:5px;padding:4px 8px;border-radius:5px;background:${(saldo_ars+pendARS)>=0?'var(--green-dim)':'var(--red-dim)'};color:${(saldo_ars+pendARS)>=0?'var(--green)':'var(--red)'}">
+          ${(saldo_ars+pendARS)>=0?'Sobraría':'Faltaría'} ARS ${fmtN(Math.abs(saldo_ars+pendARS))}
+        </div>`:''}
+      </div>
     </div>
     <div class="card">
       <div class="card-title"><span class="dot dac"></span>Detalle del flujo ${cerrado?'<span style="font-size:10px;color:var(--green);font-family:var(--mono);margin-left:6px">· datos del snapshot</span>':''}</div>
