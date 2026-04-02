@@ -1009,10 +1009,12 @@ function prestamoCuotasEnMes(r, ym){
       .length;
     return cuotasHoy + cobrosPost;
   }
-  // Meses futuros: proyectar desde hoy
-  const [ty,tm] = _TODAY_YM.split('-').map(Number);
+  // Meses futuros: proyectar desde inicio (si hay) o desde hoy
+  const ref = inicio || _TODAY_YM;
+  const [ry,rm] = ref.split('-').map(Number);
   const [yy,ym2] = ym.split('-').map(Number);
-  const diffMeses = (yy - ty)*12 + (ym2 - tm);
+  const diffMeses = (yy - ry)*12 + (ym2 - rm);
+  if(diffMeses <= 0) return cuotasHoy;
   const restantes = cuotasHoy - diffMeses;
   return restantes > 0 ? restantes : 0;
 }
