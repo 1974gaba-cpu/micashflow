@@ -1002,11 +1002,17 @@ function prestamoCuotasEnMes(r, ym){
   if(inicio && ym < inicio) return 0;
   const cuotasHoy = parseInt(r.cuotas)||0;
   if(cuotasHoy <= 0) return 0;
-  const ref = inicio || _TODAY_YM;
-  const [ry,rm] = ref.split('-').map(Number);
+  if(ym <= _TODAY_YM){
+    // Para meses pasados o actual: sumar cobros posteriores a ym hasta hoy
+    const cobrosPost = Object.keys(state.cobros||{})
+      .filter(k => k.startsWith('prestamos_out:'+r.id+':') && k.slice(-7) > ym && k.slice(-7) <= _TODAY_YM)
+      .length;
+    return cuotasHoy + cobrosPost;
+  }
+  // Meses futuros: proyectar desde hoy
+  const [ty,tm] = _TODAY_YM.split('-').map(Number);
   const [yy,ym2] = ym.split('-').map(Number);
-  const diffMeses = (yy - ry)*12 + (ym2 - rm);
-  if(diffMeses <= 0) return cuotasHoy;
+  const diffMeses = (yy - ty)*12 + (ym2 - tm);
   const restantes = cuotasHoy - diffMeses;
   return restantes > 0 ? restantes : 0;
 }
@@ -1567,8 +1573,9 @@ function renderPrestamos(col,tbodyId){
     if(c===0 && !noIniciado){ cuotaCell=`<span class="badge br">Finalizado</span>`; }
     else if(noIniciado){ cuotaCell=`<span style="font-size:11px;font-family:var(--mono);color:var(--muted)">desde ${inicio}</span>`; }
     else if(noCobrado){ cuotaCell=`<span class="badge-en-duda">⚠ En duda</span>`; }
+    else if(isOut && !cobrado && ym < _TODAY_YM){ cuotaCell=`<div style="display:flex;align-items:center;gap:5px"><span class="badge ba">${cuotasEnMes}</span><span style="font-size:10px;font-family:var(--mono);color:var(--muted)">sin registro</span></div>`; }
     else { cuotaCell=`<div style="display:flex;align-items:center;gap:5px"><span class="badge ${cobrado?'bg':'ba'}">${cuotasEnMes}</span>${cobrado?`<span style="font-size:10px;font-family:var(--mono);color:var(--green)">✓ ${registroCobro&&registroCobro.desc?registroCobro.desc:'cobrado'}</span>`:''}</div>`; }
-    const showCobrar=isOut&&cuotasEnMes>0&&!noIniciado&&!cobrado&&!noCobrado;
+    const showCobrar=isOut&&cuotasEnMes>0&&!noIniciado&&!cobrado&&!noCobrado&&ym===_TODAY_YM;
     const showDeshacer=isOut&&cobrado;
     const showMinus=!isOut&&c>0;
     const btns=showCobrar
