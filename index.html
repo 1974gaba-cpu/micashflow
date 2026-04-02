@@ -582,6 +582,83 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
   </div>
 </div>
 
+<!-- USAR MODAL -->
+<div class="modal-overlay" id="usar-modal" style="display:none">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title">Usar fondos · <span id="usar-cuenta-lbl" style="color:var(--accent)"></span></div>
+    <div style="font-size:12px;font-family:var(--mono);color:var(--muted2);margin-bottom:14px">Saldo disponible: <span id="usar-saldo-lbl" style="color:var(--green)"></span></div>
+    <!-- Tabs -->
+    <div class="hist-tabs" style="margin-bottom:14px">
+      <div class="htab active" id="usar-tab-gasto" onclick="setUsarTab('gasto')">Gasto / Pago</div>
+      <div class="htab" id="usar-tab-cancelar" onclick="setUsarTab('cancelar')">Cancelar préstamo</div>
+      <div class="htab" id="usar-tab-inversion" onclick="setUsarTab('inversion')">Inversión</div>
+      <div class="htab" id="usar-tab-prestamo" onclick="setUsarTab('prestamo')">Préstamo a dar</div>
+    </div>
+
+    <!-- Panel Gasto -->
+    <div id="usar-panel-gasto">
+      <div class="form-row" style="gap:10px">
+        <div class="fg" style="flex:2"><label>Descripción</label><input id="usar-gasto-desc" placeholder="Ej: Supermercado, Nafta"></div>
+        <div class="fg"><label>Monto (<span id="usar-gasto-cur"></span>)</label><input id="usar-gasto-amt" type="number" placeholder="0" min="0" step="0.01"></div>
+      </div>
+      <div class="form-hint" style="margin-top:8px">↳ Se registra en Gastos Directos y se descuenta del saldo.</div>
+    </div>
+
+    <!-- Panel Cancelar préstamo propio -->
+    <div id="usar-panel-cancelar" style="display:none">
+      <div class="form-row" style="gap:10px">
+        <div class="fg" style="flex:2">
+          <label>Préstamo a cancelar</label>
+          <select id="usar-pi-select" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:13px;color:var(--text);font-family:var(--sans);outline:none"></select>
+        </div>
+        <div class="fg"><label>Monto (<span id="usar-cancel-cur"></span>)</label><input id="usar-cancel-amt" type="number" placeholder="0" min="0" step="0.01"></div>
+      </div>
+      <div class="form-hint" style="margin-top:8px">↳ Descuenta del saldo y reduce el capital del préstamo. Si llega a 0, se cancela automáticamente.</div>
+    </div>
+
+    <!-- Panel Inversión -->
+    <div id="usar-panel-inversion" style="display:none">
+      <div class="form-row" style="gap:10px">
+        <div class="fg" style="flex:2">
+          <label>Posición</label>
+          <select id="usar-inv-select" onchange="toggleNuevaInv()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:13px;color:var(--text);font-family:var(--sans);outline:none"></select>
+        </div>
+        <div class="fg"><label>Monto (<span id="usar-inv-cur"></span>)</label><input id="usar-inv-amt" type="number" placeholder="0" min="0" step="0.01"></div>
+      </div>
+      <div id="usar-inv-nueva-form" style="display:none;background:var(--surface2);border:1px dashed var(--border2);border-radius:var(--r);padding:12px;margin-top:10px">
+        <div class="form-row" style="gap:10px">
+          <div class="fg" style="flex:2"><label>Nombre posición</label><input id="usar-inv-nueva-desc" placeholder="Ej: AAPL, FCI Cocos"></div>
+          <div class="fg"><label>Broker</label><input id="usar-inv-nueva-broker" placeholder="Ej: Cocos, Balanz"></div>
+        </div>
+        <div class="form-row" style="gap:10px;margin-top:8px">
+          <div class="fg"><label>Tipo</label><select id="usar-inv-nueva-tipo" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:13px;color:var(--text);font-family:var(--sans);outline:none"><option>CEDEAR</option><option>Fondo</option><option>Acción</option><option>Bono</option><option>Crypto</option><option>Otro</option></select></div>
+          <div class="fg"><label>Liquidez</label><select id="usar-inv-nueva-liq" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:13px;color:var(--text);font-family:var(--sans);outline:none"><option>Inmediata</option><option>Corto</option><option>Medio</option><option>Largo</option></select></div>
+        </div>
+      </div>
+      <div class="form-hint" style="margin-top:8px">↳ Suma al valor de la posición y descuenta del saldo.</div>
+    </div>
+
+    <!-- Panel Préstamo a dar -->
+    <div id="usar-panel-prestamo" style="display:none">
+      <div class="form-row" style="gap:10px">
+        <div class="fg" style="flex:2"><label>Deudor</label><input id="usar-po-desc" placeholder="Ej: Juan, Empresa X"></div>
+        <div class="fg"><label>Monto total (<span id="usar-po-cur"></span>)</label><input id="usar-po-amt" type="number" placeholder="0" min="0" step="0.01"></div>
+      </div>
+      <div class="form-row" style="gap:10px;margin-top:8px">
+        <div class="fg"><label>Cuotas</label><input id="usar-po-cuotas" type="number" placeholder="1" min="1" value="1"></div>
+        <div class="fg"><label>Día cobro</label><input id="usar-po-day" type="number" placeholder="1-31"></div>
+        <div class="fg"><label>Mes inicio cobro</label><input id="usar-po-inicio" type="month"></div>
+      </div>
+      <div class="form-hint" style="margin-top:8px">↳ Crea el préstamo en "Te deben a vos" y descuenta del saldo.</div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:18px">
+      <button class="btn-cancel" onclick="closeUsarModal()">Cancelar</button>
+      <button class="btn-save" onclick="confirmarUsar()">✓ Confirmar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ─── HELPERS ───────────────────────────────────────────────────────────
 const months=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1602,6 +1679,152 @@ function renderEfectivoTotal(){
   if(totDiv)totDiv.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:14px 18px"><div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Total USD</div><div style="font-family:var(--mono);font-size:22px;color:var(--green)">USD ${fmtN(usd)}</div></div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:14px 18px"><div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Total ARS</div><div style="font-family:var(--mono);font-size:22px;color:var(--text)">ARS ${fmtN(ars)}</div><div style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:3px">≈ USD ${fmtN(ars/state.fx)}</div></div>`;
 }
 
+// ─── RENDER EFECTIVO TABLE (con botón Usar) ────────────────────────────
+function renderEfectivoTable(){
+  const tb=document.getElementById('tb-ef'); if(!tb)return;
+  const rows=state.efectivo; const col='efectivo'; const cols=['desc','tipo','cur','amt','note'];
+  const cerrado=isCerrado(state.currentMonth);
+  if(!rows||!rows.length){tb.innerHTML=`<tr><td colspan="${cols.length+2}" class="empty-state">Sin entradas todavía</td></tr>`;return;}
+  tb.innerHTML=rows.map((r,idx)=>`<tr>${cols.map(c=>{
+    if(c==='cur')return`<td>${curBadge(r[c])}</td>`;
+    if(c==='tipo')return`<td><span class="badge bac">${r[c]}</span></td>`;
+    if(c==='amt')return`<td class="mono-cell">${fmtN(r[c])}</td>`;
+    if(c==='note')return`<td class="note-cell" title="${(r[c]||'').replace(/"/g,'&quot;')}">${r[c]||'—'}</td>`;
+    return`<td>${r[c]||''}</td>`;
+  }).join('')}<td style="white-space:nowrap;display:flex;gap:4px;align-items:center">
+    ${!cerrado?`<button class="btn-cobrar" onclick="abrirUsar('${r.id}')" style="font-size:10px;padding:2px 8px">Usar</button>`:''}
+    <button class="btn-edit" onclick="moveItem('${col}','${r.id}',-1)" title="Subir" style="opacity:${idx===0?0.2:1}">↑</button>
+    <button class="btn-edit" onclick="moveItem('${col}','${r.id}',1)" title="Bajar" style="opacity:${idx===rows.length-1?0.2:1}">↓</button>
+    <button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button>
+    <button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button>
+  </td></tr>`).join('');
+}
+
+// ─── USAR MODAL ────────────────────────────────────────────────────────
+let _usarCuentaId=null, _usarTab='gasto';
+
+function abrirUsar(id){
+  if(isCerrado(state.currentMonth)){showToast('⚠ No se puede operar en un mes cerrado');return;}
+  const cuenta=state.efectivo.find(c=>c.id===id); if(!cuenta)return;
+  _usarCuentaId=id;
+  document.getElementById('usar-cuenta-lbl').textContent=cuenta.desc;
+  document.getElementById('usar-saldo-lbl').textContent=`${cuenta.cur} ${fmtN(cuenta.amt)}`;
+  // Moneda labels
+  ['usar-gasto-cur','usar-cancel-cur','usar-inv-cur','usar-po-cur'].forEach(id=>document.getElementById(id).textContent=cuenta.cur);
+  // Inversiones select
+  const selInv=document.getElementById('usar-inv-select');
+  selInv.innerHTML=state.inversiones.filter(r=>r.cur===cuenta.cur).map(r=>`<option value="${r.id}">${r.desc} · ${r.broker||'—'} (${fmtN(r.val)})</option>`).join('')+`<option value="_nueva">+ Nueva posición</option>`;
+  // Préstamos propios (prestamos_in activos)
+  const selPi=document.getElementById('usar-pi-select');
+  const pisActivos=(state.prestamos_in||[]).filter(r=>r.capital?parseFloat(r.capital)>0:parseInt(r.cuotas)>0);
+  selPi.innerHTML=pisActivos.length
+    ?pisActivos.map(r=>`<option value="${r.id}">${r.desc} — ${r.cur} ${r.capital?fmtN(r.capital)+' capital':fmtN(r.amt)+' × '+r.cuotas+' ctas'}</option>`).join('')
+    :`<option value="">— Sin préstamos activos —</option>`;
+  // Mes actual como default en inicio
+  document.getElementById('usar-po-inicio').value=state.currentMonth;
+  // Limpiar campos
+  ['usar-gasto-desc','usar-gasto-amt','usar-cancel-amt','usar-inv-amt','usar-po-desc','usar-po-amt'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('usar-po-cuotas').value='1';
+  document.getElementById('usar-inv-nueva-form').style.display='none';
+  setUsarTab('gasto');
+  document.getElementById('usar-modal').style.display='flex';
+}
+
+function setUsarTab(tab){
+  _usarTab=tab;
+  ['gasto','cancelar','inversion','prestamo'].forEach(t=>{
+    document.getElementById('usar-tab-'+t).classList.toggle('active',t===tab);
+    document.getElementById('usar-panel-'+t).style.display=t===tab?'block':'none';
+  });
+}
+
+function toggleNuevaInv(){
+  const val=document.getElementById('usar-inv-select').value;
+  document.getElementById('usar-inv-nueva-form').style.display=val==='_nueva'?'block':'none';
+}
+
+function closeUsarModal(){
+  document.getElementById('usar-modal').style.display='none';
+  _usarCuentaId=null;
+}
+
+function confirmarUsar(){
+  const cuenta=state.efectivo.find(c=>c.id===_usarCuentaId); if(!cuenta)return;
+  const ym=state.currentMonth;
+  const saldo=parseFloat(cuenta.amt)||0;
+
+  if(_usarTab==='gasto'){
+    const desc=document.getElementById('usar-gasto-desc').value.trim();
+    const monto=parseFloat(document.getElementById('usar-gasto-amt').value);
+    if(!desc){showToast('⚠ Ingresá una descripción');return;}
+    if(!monto||monto<=0){showToast('⚠ Ingresá un monto válido');return;}
+    if(monto>saldo){showToast('⚠ Monto supera el saldo disponible');return;}
+    if(!state.gastos_directos[ym])state.gastos_directos[ym]=[];
+    state.gastos_directos[ym].push({id:uid(),desc,medio:cuenta.tipo||'Efectivo',cur:cuenta.cur,amt:String(monto),date:new Date().toISOString().slice(0,10),note:`Uso de ${cuenta.desc}`});
+    cuenta.amt=String(saldo-monto);
+    saveState();renderAll();showToast('✓ Gasto registrado y saldo actualizado');closeUsarModal();
+
+  }else if(_usarTab==='cancelar'){
+    const piId=document.getElementById('usar-pi-select').value;
+    const monto=parseFloat(document.getElementById('usar-cancel-amt').value);
+    if(!piId){showToast('⚠ Seleccioná un préstamo');return;}
+    if(!monto||monto<=0){showToast('⚠ Ingresá un monto válido');return;}
+    if(monto>saldo){showToast('⚠ Monto supera el saldo disponible');return;}
+    const pi=state.prestamos_in.find(r=>r.id===piId); if(!pi)return;
+    if(pi.capital){
+      const nuevo=Math.max(0,parseFloat(pi.capital)-monto);
+      pi.capital=String(nuevo);
+      if(nuevo===0){
+        if(!state.prestamos_cancelados)state.prestamos_cancelados=[];
+        state.prestamos_cancelados.push({...pi,cancelado:ym});
+        state.prestamos_in=state.prestamos_in.filter(r=>r.id!==piId);
+      }
+    }else{
+      pi.cuotas=String(Math.max(0,parseInt(pi.cuotas)-1));
+      if(parseInt(pi.cuotas)===0){
+        if(!state.prestamos_cancelados)state.prestamos_cancelados=[];
+        state.prestamos_cancelados.push({...pi,cancelado:ym});
+        state.prestamos_in=state.prestamos_in.filter(r=>r.id!==piId);
+      }
+    }
+    cuenta.amt=String(saldo-monto);
+    saveState();renderAll();showToast('✓ Préstamo actualizado y saldo descontado');closeUsarModal();
+
+  }else if(_usarTab==='inversion'){
+    const invId=document.getElementById('usar-inv-select').value;
+    const monto=parseFloat(document.getElementById('usar-inv-amt').value);
+    if(!monto||monto<=0){showToast('⚠ Ingresá un monto válido');return;}
+    if(monto>saldo){showToast('⚠ Monto supera el saldo disponible');return;}
+    if(invId==='_nueva'){
+      const desc=document.getElementById('usar-inv-nueva-desc').value.trim();
+      const broker=document.getElementById('usar-inv-nueva-broker').value.trim();
+      const tipo=document.getElementById('usar-inv-nueva-tipo').value;
+      const liq=document.getElementById('usar-inv-nueva-liq').value;
+      if(!desc){showToast('⚠ Ingresá el nombre de la posición');return;}
+      state.inversiones.push({id:uid(),desc,broker:broker||'—',tipo,cur:cuenta.cur,val:String(monto),liq,note:''});
+    }else{
+      const inv=state.inversiones.find(r=>r.id===invId); if(!inv)return;
+      inv.val=String((parseFloat(inv.val)||0)+monto);
+    }
+    cuenta.amt=String(saldo-monto);
+    saveState();renderAll();showToast('✓ Inversión actualizada y saldo descontado');closeUsarModal();
+
+  }else if(_usarTab==='prestamo'){
+    const desc=document.getElementById('usar-po-desc').value.trim();
+    const monto=parseFloat(document.getElementById('usar-po-amt').value);
+    const cuotas=Math.max(1,parseInt(document.getElementById('usar-po-cuotas').value)||1);
+    const day=document.getElementById('usar-po-day').value;
+    const inicio=document.getElementById('usar-po-inicio').value;
+    if(!desc){showToast('⚠ Ingresá el nombre del deudor');return;}
+    if(!monto||monto<=0){showToast('⚠ Ingresá un monto válido');return;}
+    if(monto>saldo){showToast('⚠ Monto supera el saldo disponible');return;}
+    const cuotaAmt=monto/cuotas;
+    state.prestamos_out.push({id:uid(),desc,cur:cuenta.cur,amt:String(cuotaAmt),cuotas:String(cuotas),_cuotas_originales:String(cuotas),day:day||'',note:`Otorgado desde ${cuenta.desc}`,inicio:inicio||''});
+    cuenta.amt=String(saldo-monto);
+    saveState();renderAll();showToast('✓ Préstamo registrado y saldo descontado');closeUsarModal();
+  }
+}
+
 // ─── RENDER GENERIC TABLE ──────────────────────────────────────────────
 function renderTable(tbodyId,rows,cols,col){
   const tb=document.getElementById(tbodyId); if(!tb)return;
@@ -1633,7 +1856,7 @@ function renderAll(){
   renderTable('tb-tc',state.tarjetas[ym]||[],['desc','cur','amt','date','note'],'tarjetas');
   renderTable('tb-gd',state.gastos_directos[ym]||[],['desc','medio','cur','amt','date','note'],'gastos_directos');
   renderInversiones();
-  renderTable('tb-ef',state.efectivo,['desc','tipo','cur','amt','note'],'efectivo');
+  renderEfectivoTable();
   renderEfectivoTotal();
   renderPrestamos('prestamos_out','tb-po');
   renderPrestamosIn();
