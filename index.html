@@ -1167,7 +1167,7 @@ function abrirDescuentoModal(cuentas){
   document.getElementById('desc-gasto-lbl').textContent=_gdItem.desc;
   document.getElementById('desc-monto-lbl').textContent=_gdItem.cur+' '+fmtN(_gdItem.amt);
   const cont=document.getElementById('desc-cuentas');
-  cont.innerHTML=cuentas.map(c=>'<button onclick="confirmarDescuento(''+c.id+'')" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;text-align:left;color:var(--text);font-family:var(--sans);width:100%"><div style="font-size:13px;font-weight:600">'+c.desc+'</div><div style="font-size:11px;font-family:var(--mono);color:var(--muted2);margin-top:2px">'+c.cur+' '+fmtN(c.amt)+' disponible</div></button>').join('');
+  cont.innerHTML=cuentas.map(c=>`<button onclick="confirmarDescuento('${c.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;text-align:left;color:var(--text);font-family:var(--sans);width:100%"><div style="font-size:13px;font-weight:600">${c.desc}</div><div style="font-size:11px;font-family:var(--mono);color:var(--muted2);margin-top:2px">${c.cur} ${fmtN(c.amt)} disponible</div></button>`).join('');
   document.getElementById('descuento-modal').style.display='flex';
 }
 function closeDescuentoModal(){document.getElementById('descuento-modal').style.display='none';_gdItem=null;}
