@@ -203,6 +203,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
     <input type="file" id="imp-file" accept=".json" onchange="importData(event)" style="display:none">
     <div class="month-nav">
       <button class="mnav-btn" onclick="prevMonth()">‹</button>
+      <button class="mnav-btn" onclick="goToday()" id="btn-today" title="Ir al mes actual" style="color:var(--blue);padding:4px 8px;font-size:14px;line-height:1">●</button>
       <span class="month-lbl" id="month-lbl"></span>
       <button class="mnav-btn" onclick="nextMonth()">›</button>
     </div>
@@ -1059,6 +1060,7 @@ function calcMonth(ym){
 // ─── NAV ───────────────────────────────────────────────────────────────
 function prevMonth(){ const[y,m]=state.currentMonth.split('-').map(Number); const d=new Date(y,m-2,1); state.currentMonth=d.toISOString().slice(0,7); saveState(); renderAll(); }
 function nextMonth(){ const[y,m]=state.currentMonth.split('-').map(Number); const d=new Date(y,m,1); state.currentMonth=d.toISOString().slice(0,7); saveState(); renderAll(); }
+function goToday(){ state.currentMonth=new Date().toISOString().slice(0,7); saveState(); renderAll(); }
 function saveFX(){ state.fx=parseFloat(document.getElementById('tc-inp').value)||1420; saveState(); }
 function moveItem(col, id, dir){
   const isMonthly = ['ingresos_fijos','ingresos_espo','tarjetas','gastos_directos'].includes(col);
@@ -1542,8 +1544,21 @@ function renderDA(ym){
     const s=cierre&&cierre.da_amts&&cierre.da_amts[r.id];
     return s?{...r,amt:s.amt,cur:s.cur}:r;
   });
+  // Calcular último mes activo de una DA con cuotas
+  function daLastMonth(r){
+    if(!r.cuotas_total||parseInt(r.cuotas_total)===0) return null;
+    const inicio=r.inicio||state.currentMonth;
+    const total=parseInt(r.cuotas_total);
+    const[y,m]=inicio.split('-').map(Number);
+    const d=new Date(y,m-1+total-1,1);
+    return d.toISOString().slice(0,7);
+  }
   const activos=daConSnap.filter(r=>{const{activo}=daCuotaActual(r,ym);return activo;});
-  const inactivos=daConSnap.filter(r=>{const{activo}=daCuotaActual(r,ym);return !activo;});
+  const inactivos=daConSnap.filter(r=>{
+    const{activo}=daCuotaActual(r,ym); if(activo) return false;
+    const last=daLastMonth(r);
+    return !last||ym<=last; // fijos siempre, cuotas solo hasta su último mes
+  });
   if(!state.da_fijos.length){tb.innerHTML=`<tr><td colspan="7" class="empty-state">Sin débitos automáticos</td></tr>`;return;}
   tb.innerHTML=[...activos,...inactivos].map(r=>{
     const{cuota,total,restantes,activo}=daCuotaActual(r,ym);
@@ -1985,6 +2000,8 @@ function renderTable(tbodyId,rows,cols,col){
 function renderAll(){
   const ym=state.currentMonth;
   document.getElementById('month-lbl').textContent=mlabel(ym);
+  const btnToday=document.getElementById('btn-today');
+  if(btnToday) btnToday.style.visibility=ym===new Date().toISOString().slice(0,7)?'hidden':'visible';
   document.getElementById('tc-inp').value=state.fx;
   document.querySelectorAll('[id^="ml-"]').forEach(el=>el.textContent=mlabel(ym));
   // Para meses cerrados, mostrar gastos fijos con montos del snapshot (read-only visual)
