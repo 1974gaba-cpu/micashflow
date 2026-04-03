@@ -512,18 +512,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
   </div>
 </div>
 
-<!-- DESCUENTO CUENTA MODAL -->
-<div class="modal-overlay" id="descuento-modal" style="display:none">
-  <div class="modal" style="max-width:380px">
-    <div class="modal-title">¿Descontar de una cuenta?</div>
-    <p style="font-size:12px;color:var(--muted2);margin-bottom:12px">Gasto: <span id="desc-gasto-lbl" style="color:var(--text)"></span> — <span id="desc-monto-lbl" style="color:var(--red);font-family:var(--mono)"></span></p>
-    <div id="desc-cuentas" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
-    <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeDescuentoModal()">No descontar</button>
-    </div>
-  </div>
-</div>
-
 <!-- COBRO MODAL -->
 <div class="modal-overlay" id="cobro-modal">
   <div class="modal cobro-modal">
@@ -692,6 +680,89 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
   </div>
 </div>
 
+<!-- DESCUENTO CUENTA MODAL -->
+<div class="modal-overlay" id="descuento-modal" style="display:none">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-title">¿Descontar de una cuenta?</div>
+    <p style="font-size:12px;color:var(--muted2);margin-bottom:12px">Gasto: <span id="desc-gasto-lbl" style="color:var(--text)"></span> — <span id="desc-monto-lbl" style="color:var(--red);font-family:var(--mono)"></span></p>
+    <div id="desc-cuentas" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDescuentoModal()">No descontar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MOBILE QUICK ADD POPUP -->
+<div id="mobile-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:2000;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px 24px;max-width:320px;width:90%;text-align:center">
+    <div style="font-size:28px;margin-bottom:12px">💸</div>
+    <div style="font-size:17px;font-weight:700;margin-bottom:8px">¿Querés cargar un gasto?</div>
+    <p style="font-size:13px;color:var(--muted2);margin-bottom:24px">Tus datos están listos</p>
+    <button onclick="abrirQuickAdd();cerrarMobilePopup()" style="width:100%;padding:13px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;font-family:var(--sans)">Sí, cargar gasto</button>
+    <button onclick="cerrarMobilePopup()" style="width:100%;padding:11px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--muted2);font-size:14px;cursor:pointer;font-family:var(--sans)">No, ver todo</button>
+  </div>
+</div>
+
+<!-- MOBILE QUICK ADD MODAL -->
+<div id="quick-add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2001;align-items:flex-end;justify-content:center">
+  <div style="background:var(--surface);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-size:16px;font-weight:700">Nuevo gasto</div>
+      <button onclick="cerrarQuickAdd()" style="background:var(--surface2);border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;color:var(--muted2);font-size:16px;display:flex;align-items:center;justify-content:center">×</button>
+    </div>
+    <!-- Tabs -->
+    <div style="display:flex;gap:6px;margin-bottom:18px;background:var(--surface2);border-radius:10px;padding:4px">
+      <button id="qtab-directo" onclick="setQuickTab('directo')" style="flex:1;padding:8px 4px;border:none;border-radius:7px;font-size:12px;font-family:var(--mono);cursor:pointer;background:var(--accent);color:#fff">Gasto directo</button>
+      <button id="qtab-1pago" onclick="setQuickTab('1pago')" style="flex:1;padding:8px 4px;border:none;border-radius:7px;font-size:12px;font-family:var(--mono);cursor:pointer;background:transparent;color:var(--muted2)">1 pago</button>
+      <button id="qtab-cuotas" onclick="setQuickTab('cuotas')" style="flex:1;padding:8px 4px;border:none;border-radius:7px;font-size:12px;font-family:var(--mono);cursor:pointer;background:transparent;color:var(--muted2)">Cuotas</button>
+    </div>
+    <!-- Panel Gasto Directo -->
+    <div id="qpanel-directo">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Descripción</label><input id="qgd-desc" placeholder="Ej: Farmacia, Supermercado" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></div>
+        <div style="display:flex;gap:10px">
+          <div style="flex:1"><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Moneda</label><select id="qgd-cur" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"><option value="ARS">ARS</option><option value="USD">USD</option></select></div>
+          <div style="flex:2"><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Monto</label><input id="qgd-amt" type="number" placeholder="0" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--mono);font-size:14px;outline:none;margin-top:4px"></div>
+        </div>
+        <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Medio de pago</label><select id="qgd-medio" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"><option value="Efectivo">💵 Efectivo</option><option value="Billetera digital">📱 Billetera digital</option><option value="Transferencia">🏦 Transferencia</option></select></div>
+        <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Nota (opcional)</label><input id="qgd-note" placeholder="Ej: almuerzo, regalo..." style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></div>
+      </div>
+      <button onclick="confirmarQuickGasto('directo')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans)">✓ Guardar gasto</button>
+    </div>
+    <!-- Panel 1 Pago -->
+    <div id="qpanel-1pago" style="display:none">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Descripción</label><input id="qtc-desc" placeholder="Ej: Edenor, Coto" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></div>
+        <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Tarjeta</label><input id="qtc-tar" list="qtc-tar-list" placeholder="Ej: Visa Credicoop" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px" autocomplete="off"><datalist id="qtc-tar-list"></datalist></div>
+        <div style="display:flex;gap:10px">
+          <div style="flex:1"><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Moneda</label><select id="qtc-cur" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"><option value="ARS">ARS</option><option value="USD">USD</option></select></div>
+          <div style="flex:2"><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Monto</label><input id="qtc-amt" type="number" placeholder="0" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--mono);font-size:14px;outline:none;margin-top:4px"></div>
+        </div>
+        <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Nota (opcional)</label><input id="qtc-note" placeholder="" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></div>
+      </div>
+      <button onclick="confirmarQuickGasto('1pago')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans)">✓ Guardar gasto</button>
+    </div>
+    <!-- Panel Cuotas -->
+    <div id="qpanel-cuotas" style="display:none">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Descripción</label><input id="qda-desc" placeholder="Ej: Zapatillas Nike" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></div>
+        <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Tarjeta</label><input id="qda-tar" list="qda-tar-list" placeholder="Ej: Cabal" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px" autocomplete="off"><datalist id="qda-tar-list"></datalist></div>
+        <div style="display:flex;gap:10px">
+          <div style="flex:1"><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Moneda</label><select id="qda-cur" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"><option value="ARS">ARS</option><option value="USD">USD</option></select></div>
+          <div style="flex:2"><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Monto por cuota</label><input id="qda-amt" type="number" placeholder="0" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--mono);font-size:14px;outline:none;margin-top:4px"></div>
+        </div>
+        <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Cantidad de cuotas</label><input id="qda-cuotas" type="number" placeholder="Ej: 6" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--mono);font-size:14px;outline:none;margin-top:4px"></div>
+        <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Nota (opcional)</label><input id="qda-note" placeholder="" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></div>
+      </div>
+      <button onclick="confirmarQuickGasto('cuotas')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans)">✓ Guardar gasto</button>
+    </div>
+  </div>
+</div>
+
+<!-- FLOATING ACTION BUTTON (mobile only) -->
+<button id="fab-mobile" onclick="abrirQuickAdd()" title="Cargar gasto rápido" style="display:none;position:fixed;bottom:24px;right:20px;width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;color:#fff;font-size:26px;cursor:pointer;z-index:1500;box-shadow:0 4px 16px rgba(0,0,0,.4);align-items:center;justify-content:center">＋</button>
+
+
 <script>
 // ─── HELPERS ───────────────────────────────────────────────────────────
 const months=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -783,7 +854,7 @@ async function driveLoadOrCreate(){
           state._savedAt = data.savedAt || new Date().toISOString();
           lsSet('_savedAt', state._savedAt);
           lsSet('__drive_loaded', true); saveStateLocal(); renderAll();
-          setDriveStatus('✓ Sincronizado', '#2ecc71');
+          setDriveStatus('✓ Sincronizado', '#2ecc71'); triggerMobileQuickAdd();
           showToast(`☁ Datos cargados desde Drive (${loaded} secciones)`);
           return;
         }
@@ -823,7 +894,7 @@ async function driveLoadOrCreate(){
           state._savedAt = chosenData.savedAt || new Date().toISOString();
           lsSet('_savedAt', state._savedAt);
           lsSet('__drive_loaded', true); saveStateLocal(); renderAll();
-          setDriveStatus('✓ Sincronizado', '#2ecc71');
+          setDriveStatus('✓ Sincronizado', '#2ecc71'); triggerMobileQuickAdd();
           showToast(`☁ Datos cargados desde Drive (${loaded} secciones)`);
           return;
         }
@@ -875,7 +946,7 @@ async function driveRefresh(){
       state._savedAt = driveData.savedAt || new Date().toISOString();
       lsSet('_savedAt', state._savedAt);
       saveStateLocal(); renderAll();
-      setDriveStatus('✓ Sincronizado', '#2ecc71');
+      setDriveStatus('✓ Sincronizado', '#2ecc71'); triggerMobileQuickAdd();
       showToast(`☁ Datos traídos del Drive (${loaded} secciones)`);
     } else {
       showToast('⚠ Error al traer datos del Drive');
@@ -1136,51 +1207,6 @@ const FMAP={
   efectivo:['desc','tipo','cur','amt','note'],prestamos_out:['desc','cur','amt','cuotas','day','note','inicio'],
   prestamos_in:['desc','cur','amt','cuotas','day','note'],
 };
-
-// GASTO DIRECTO CON DESCUENTO DE CUENTA
-let _gdItem=null;
-function addGastoDirecto(){
-  const desc=document.getElementById('gd-desc').value.trim();
-  if(!desc){alert('Completa al menos la descripcion.');return;}
-  checkDriveBeforeEdit();
-  const medio=document.getElementById('gd-medio').value;
-  const cur=document.getElementById('gd-cur').value;
-  const amt=document.getElementById('gd-amt').value;
-  const date=document.getElementById('gd-date').value;
-  const noteEl=document.getElementById('gd-note');
-  const note=noteEl?noteEl.value.trim():'';
-  const ym=state.currentMonth;
-  const item={id:uid(),desc,medio,cur,amt,date,note};
-  if(!state.gastos_directos[ym])state.gastos_directos[ym]=[];
-  state.gastos_directos[ym].push(item);
-  saveState();
-  ['gd-desc','gd-amt','gd-date','gd-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  document.getElementById('frm-gd').style.display='none';
-  renderAll();
-  const medioNorm=medio.toLowerCase();
-  if(medioNorm.includes('efectivo')||medioNorm.includes('billetera')||medioNorm.includes('digital')){
-    const cuentasMatch=state.efectivo.filter(c=>c.cur===cur&&parseFloat(c.amt)>0);
-    if(cuentasMatch.length>0){_gdItem={desc,cur,amt:parseFloat(amt)||0};abrirDescuentoModal(cuentasMatch);return;}
-  }
-}
-function abrirDescuentoModal(cuentas){
-  document.getElementById('desc-gasto-lbl').textContent=_gdItem.desc;
-  document.getElementById('desc-monto-lbl').textContent=_gdItem.cur+' '+fmtN(_gdItem.amt);
-  const cont=document.getElementById('desc-cuentas');
-  cont.innerHTML=cuentas.map(c=>`<button onclick="confirmarDescuento('${c.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;text-align:left;color:var(--text);font-family:var(--sans);width:100%"><div style="font-size:13px;font-weight:600">${c.desc}</div><div style="font-size:11px;font-family:var(--mono);color:var(--muted2);margin-top:2px">${c.cur} ${fmtN(c.amt)} disponible</div></button>`).join('');
-  document.getElementById('descuento-modal').style.display='flex';
-}
-function closeDescuentoModal(){document.getElementById('descuento-modal').style.display='none';_gdItem=null;}
-function confirmarDescuento(cuentaId){
-  if(!_gdItem)return;
-  const cuenta=state.efectivo.find(c=>c.id===cuentaId);if(!cuenta)return;
-  const saldo=parseFloat(cuenta.amt)||0;
-  const monto=_gdItem.amt;
-  if(monto>saldo){showToast('Monto supera el saldo de '+cuenta.desc);closeDescuentoModal();return;}
-  cuenta.amt=String(Math.round((saldo-monto)*100)/100);
-  saveState();renderAll();showToast('Descontado de '+cuenta.desc);closeDescuentoModal();
-}
-
 function addItem(col,formId,fieldIds){
   const vals=fieldIds.map(id=>document.getElementById(id).value.trim());
   if(!vals[0]){alert('Completá al menos la descripción.');return;}
@@ -1712,14 +1738,15 @@ function renderPrestamosIn(){
       // Capital
       const capitalFmt=`<span style="font-family:var(--mono)">${r.cur==='USD'?'USD':'ARS'} ${fmtN(capital)}</span>`;
 
-      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td>${capitalFmt}</td><td>${tasaFmt}</td><td style="font-size:12px">${vencFmt}</td><td>${cancelFmt}${interesesFmt}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>`;
+      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td>${capitalFmt}</td><td>${tasaFmt}</td><td style="font-size:12px">${vencFmt}</td><td>${cancelFmt}${interesesFmt}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><span class="drag-handle" title="Arrastrar">⠿</span><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>`;
     } else {
       // ── Formato viejo: cuota + cuotas restantes ──
       const c=parseInt(r.cuotas)||0;
       const cuotaCell=c===0?`<span class="badge br">Finalizado</span>`:`<span class="badge ba">${c}</span>`;
-      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td class="mono-cell">${fmtN(r.amt)}</td><td>—</td><td style="font-size:12px;font-family:var(--mono);color:var(--muted)">${r.day?'día '+r.day:'—'}</td><td>${cuotaCell} cuotas</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button onclick="decrementCuotas('prestamos_in','${r.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:1px 7px;cursor:pointer;font-family:var(--mono)">−1</button><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>`;
+      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td class="mono-cell">${fmtN(r.amt)}</td><td>—</td><td style="font-size:12px;font-family:var(--mono);color:var(--muted)">${r.day?'día '+r.day:'—'}</td><td>${cuotaCell} cuotas</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><span class="drag-handle" title="Arrastrar">⠿</span><button onclick="decrementCuotas('prestamos_in','${r.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:1px 7px;cursor:pointer;font-family:var(--mono)">−1</button><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>`;
     }
   }).join('');
+  initDragDrop('tb-pi','prestamos_in');
 }
 
 // ─── RENDER INVERSIONES ────────────────────────────────────────────────
@@ -1821,20 +1848,20 @@ function renderGastosFijosTable(rows){
     const montoCell=adelanto
       ?`<td class="mono-cell"><span style="color:var(--text);font-size:15px">${fmtN(parseFloat(r.amt)-adelanto)}</span><br><span style="color:var(--muted);font-size:11px;text-decoration:line-through">${fmtN(r.amt)}</span></td>`
       :`<td class="mono-cell">${fmtN(r.amt)}</td>`;
-    return`<tr style="${rowStyle}">
+    return`<tr data-id="${r.id}" style="${rowStyle}">
       <td>${r.desc||''} ${badge}${adelantoLine}</td>
       <td>${curBadge(r.cur)}</td>
       ${montoCell}
       <td>${r.day||'—'}</td>
       <td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td>
       <td style="white-space:nowrap">
-        <button class="btn-edit" onclick="moveItem('${col}','${r.id}',-1)" title="Subir" style="opacity:${idx===0?0.2:1}">↑</button>
-        <button class="btn-edit" onclick="moveItem('${col}','${r.id}',1)" title="Bajar" style="opacity:${idx===rows.length-1?0.2:1}">↓</button>
+        <span class="drag-handle" title="Arrastrar">⠿</span>
         <button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button>
         <button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button>
       </td>
     </tr>`;
   }).join('');
+  initDragDrop('tb-gf','gastos_fijos');
 }
 
 function renderEfectivoTable(){
@@ -1842,7 +1869,7 @@ function renderEfectivoTable(){
   const rows=state.efectivo; const col='efectivo'; const cols=['desc','tipo','cur','amt','note'];
   const cerrado=isCerrado(state.currentMonth);
   if(!rows||!rows.length){tb.innerHTML=`<tr><td colspan="${cols.length+2}" class="empty-state">Sin entradas todavía</td></tr>`;return;}
-  tb.innerHTML=rows.map((r,idx)=>`<tr>${cols.map(c=>{
+  tb.innerHTML=rows.map((r,idx)=>`<tr data-id="${r.id}">${cols.map(c=>{
     if(c==='cur')return`<td>${curBadge(r[c])}</td>`;
     if(c==='tipo')return`<td><span class="badge bac">${r[c]}</span></td>`;
     if(c==='amt')return`<td class="mono-cell">${fmtN(r[c])}</td>`;
@@ -1850,11 +1877,11 @@ function renderEfectivoTable(){
     return`<td>${r[c]||''}</td>`;
   }).join('')}<td style="white-space:nowrap;display:flex;gap:4px;align-items:center">
     ${!cerrado?`<button class="btn-cobrar" onclick="abrirUsar('${r.id}')" style="font-size:10px;padding:2px 8px">Usar</button>`:''}
-    <button class="btn-edit" onclick="moveItem('${col}','${r.id}',-1)" title="Subir" style="opacity:${idx===0?0.2:1}">↑</button>
-    <button class="btn-edit" onclick="moveItem('${col}','${r.id}',1)" title="Bajar" style="opacity:${idx===rows.length-1?0.2:1}">↓</button>
+    <span class="drag-handle" title="Arrastrar">⠿</span>
     <button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button>
     <button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button>
   </td></tr>`).join('');
+  initDragDrop('tb-ef','efectivo');
 }
 
 // ─── USAR MODAL ────────────────────────────────────────────────────────
@@ -2590,6 +2617,140 @@ function saveEdit(){
   saveState();closeEditModal();renderAll();showToast('✓ Cambios guardados');
 }
 document.addEventListener('click',e=>{if(e.target.id==='edit-modal')closeEditModal();if(e.target.id==='cobro-modal')closeCobroModal();});
+
+// ─── GASTO DIRECTO CON DESCUENTO ─────────────────────────────────────
+let _gdItem=null;
+function addGastoDirecto(){
+  const desc=document.getElementById('gd-desc').value.trim();
+  if(!desc){alert('Completa al menos la descripcion.');return;}
+  checkDriveBeforeEdit();
+  const medio=document.getElementById('gd-medio').value;
+  const cur=document.getElementById('gd-cur').value;
+  const amt=document.getElementById('gd-amt').value;
+  const date=document.getElementById('gd-date').value;
+  const noteEl=document.getElementById('gd-note');
+  const note=noteEl?noteEl.value.trim():'';
+  const ym=state.currentMonth;
+  const item={id:uid(),desc,medio,cur,amt,date,note};
+  if(!state.gastos_directos[ym])state.gastos_directos[ym]=[];
+  state.gastos_directos[ym].push(item);
+  saveState();
+  ['gd-desc','gd-amt','gd-date','gd-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('frm-gd').style.display='none';
+  renderAll();
+  const medioNorm=medio.toLowerCase();
+  if(medioNorm.includes('efectivo')||medioNorm.includes('billetera')||medioNorm.includes('digital')){
+    const match=state.efectivo.filter(c=>c.cur===cur&&parseFloat(c.amt)>0);
+    if(match.length>0){_gdItem={desc,cur,amt:parseFloat(amt)||0};abrirDescuentoModal(match);}
+  }
+}
+function abrirDescuentoModal(cuentas){
+  document.getElementById('desc-gasto-lbl').textContent=_gdItem.desc;
+  document.getElementById('desc-monto-lbl').textContent=_gdItem.cur+' '+fmtN(_gdItem.amt);
+  const cont=document.getElementById('desc-cuentas');
+  cont.innerHTML=cuentas.map(c=>'<button onclick="confirmarDescuento(\''+c.id+'\',event)" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;text-align:left;color:var(--text);font-family:var(--sans);width:100%"><div style="font-size:13px;font-weight:600">'+c.desc+'</div><div style="font-size:11px;font-family:var(--mono);color:var(--muted2);margin-top:2px">'+c.cur+' '+fmtN(c.amt)+' disponible</div></button>').join('');
+  document.getElementById('descuento-modal').style.display='flex';
+}
+function closeDescuentoModal(){document.getElementById('descuento-modal').style.display='none';_gdItem=null;}
+function confirmarDescuento(cuentaId,e){
+  if(e)e.stopPropagation();
+  if(!_gdItem)return;
+  const cuenta=state.efectivo.find(c=>c.id===cuentaId);if(!cuenta)return;
+  const saldo=parseFloat(cuenta.amt)||0;
+  const monto=_gdItem.amt;
+  if(monto>saldo){showToast('Monto supera el saldo de '+cuenta.desc);closeDescuentoModal();return;}
+  cuenta.amt=String(Math.round((saldo-monto)*100)/100);
+  saveState();renderAll();showToast('Descontado de '+cuenta.desc);closeDescuentoModal();
+}
+
+// ─── MOBILE QUICK ADD ────────────────────────────────────────────────
+let _quickTab='directo';
+function esMobile(){return window.innerWidth<=768||/Mobi|Android/i.test(navigator.userAgent);}
+function triggerMobileQuickAdd(){
+  if(!esMobile())return;
+  // Mostrar FAB siempre en mobile
+  const fab=document.getElementById('fab-mobile');
+  if(fab)fab.style.display='flex';
+  // Popup solo una vez por sesion
+  if(sessionStorage.getItem('mqa_shown'))return;
+  sessionStorage.setItem('mqa_shown','1');
+  setTimeout(()=>{ document.getElementById('mobile-popup').style.display='flex'; },600);
+}
+function cerrarMobilePopup(){document.getElementById('mobile-popup').style.display='none';}
+function abrirQuickAdd(){
+  cerrarMobilePopup();
+  // Poblar datalists de tarjetas
+  const tarjetas=new Set();
+  (state.da_fijos||[]).forEach(r=>{if(r.tarjeta)tarjetas.add(r.tarjeta);});
+  Object.values(state.tarjetas||{}).forEach(arr=>arr.forEach(r=>{if(r.tarjeta)tarjetas.add(r.tarjeta);}));
+  const opts=[...tarjetas].sort().map(t=>'<option value="'+t+'">').join('');
+  ['qtc-tar-list','qda-tar-list'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=opts;});
+  setQuickTab('directo');
+  document.getElementById('quick-add-modal').style.display='flex';
+}
+function cerrarQuickAdd(){
+  document.getElementById('quick-add-modal').style.display='none';
+  ['qgd-desc','qgd-amt','qgd-note','qtc-desc','qtc-tar','qtc-amt','qtc-note','qda-desc','qda-tar','qda-amt','qda-cuotas','qda-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+}
+function setQuickTab(tab){
+  _quickTab=tab;
+  ['directo','1pago','cuotas'].forEach(t=>{
+    const btn=document.getElementById('qtab-'+t);
+    const panel=document.getElementById('qpanel-'+t);
+    if(btn){btn.style.background=t===tab?'var(--accent)':'transparent';btn.style.color=t===tab?'#fff':'var(--muted2)';}
+    if(panel)panel.style.display=t===tab?'block':'none';
+  });
+}
+function confirmarQuickGasto(tipo){
+  checkDriveBeforeEdit();
+  const ym=state.currentMonth;
+  if(tipo==='directo'){
+    const desc=document.getElementById('qgd-desc').value.trim();
+    if(!desc){showToast('Completa la descripcion');return;}
+    const cur=document.getElementById('qgd-cur').value;
+    const amt=document.getElementById('qgd-amt').value;
+    const medio=document.getElementById('qgd-medio').value;
+    const note=document.getElementById('qgd-note').value.trim();
+    const item={id:uid(),desc,medio,cur,amt,date:new Date().toISOString().slice(0,10),note};
+    if(!state.gastos_directos[ym])state.gastos_directos[ym]=[];
+    state.gastos_directos[ym].push(item);
+    saveState();renderAll();
+    showToast('Gasto directo guardado');
+    cerrarQuickAdd();
+    // Ofrecer descuento
+    const mn=medio.toLowerCase();
+    if(mn.includes('efectivo')||mn.includes('billetera')||mn.includes('digital')){
+      const match=state.efectivo.filter(c=>c.cur===cur&&parseFloat(c.amt)>0);
+      if(match.length>0){_gdItem={desc,cur,amt:parseFloat(amt)||0};abrirDescuentoModal(match);}
+    }
+  } else if(tipo==='1pago'){
+    const desc=document.getElementById('qtc-desc').value.trim();
+    if(!desc){showToast('Completa la descripcion');return;}
+    const tarjeta=document.getElementById('qtc-tar').value.trim();
+    const cur=document.getElementById('qtc-cur').value;
+    const amt=document.getElementById('qtc-amt').value;
+    const note=document.getElementById('qtc-note').value.trim();
+    const item={id:uid(),desc,tarjeta,cur,amt,date:new Date().toISOString().slice(0,10),note};
+    if(!state.tarjetas[ym])state.tarjetas[ym]=[];
+    state.tarjetas[ym].push(item);
+    saveState();renderAll();
+    showToast('Gasto en tarjeta guardado');
+    cerrarQuickAdd();
+  } else if(tipo==='cuotas'){
+    const desc=document.getElementById('qda-desc').value.trim();
+    if(!desc){showToast('Completa la descripcion');return;}
+    const tarjeta=document.getElementById('qda-tar').value.trim();
+    const cur=document.getElementById('qda-cur').value;
+    const amt=document.getElementById('qda-amt').value;
+    const cuotas=document.getElementById('qda-cuotas').value||'1';
+    const note=document.getElementById('qda-note').value.trim();
+    const item={id:uid(),desc,tarjeta,cur,amt,cuotas_total:cuotas,inicio:ym,note};
+    state.da_fijos.push(item);
+    saveState();renderAll();
+    showToast('Cuotas guardadas');
+    cerrarQuickAdd();
+  }
+}
 
 // ─── EXPORT / IMPORT ───────────────────────────────────────────────────
 function exportData(){
