@@ -331,7 +331,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
             <div class="fg"><label>Monto</label><input id="gd-amt" type="number" placeholder="0"></div>
             <div class="fg"><label>Fecha</label><input id="gd-date" type="date"></div>
             <div class="fg" style="flex:2"><label>Nota</label><input id="gd-note" placeholder="Opcional"></div>
-            <button class="btn-add" onclick="addItem('gastos_directos','frm-gd',['gd-desc','gd-medio','gd-cur','gd-amt','gd-date','gd-note'])">Agregar</button>
+            <button class="btn-add" onclick="addGastoDirecto()">Agregar</button>
           </div>
         </div>
       </div>
@@ -508,6 +508,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeEditModal()">Cancelar</button>
       <button class="btn-save" onclick="saveEdit()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- DESCUENTO CUENTA MODAL -->
+<div class="modal-overlay" id="descuento-modal" style="display:none">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-title">¿Descontar de una cuenta?</div>
+    <p style="font-size:12px;color:var(--muted2);margin-bottom:12px">Gasto: <span id="desc-gasto-lbl" style="color:var(--text)"></span> — <span id="desc-monto-lbl" style="color:var(--red);font-family:var(--mono)"></span></p>
+    <div id="desc-cuentas" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDescuentoModal()">No descontar</button>
     </div>
   </div>
 </div>
@@ -1124,6 +1136,51 @@ const FMAP={
   efectivo:['desc','tipo','cur','amt','note'],prestamos_out:['desc','cur','amt','cuotas','day','note','inicio'],
   prestamos_in:['desc','cur','amt','cuotas','day','note'],
 };
+
+// GASTO DIRECTO CON DESCUENTO DE CUENTA
+let _gdItem=null;
+function addGastoDirecto(){
+  const desc=document.getElementById('gd-desc').value.trim();
+  if(!desc){alert('Completa al menos la descripcion.');return;}
+  checkDriveBeforeEdit();
+  const medio=document.getElementById('gd-medio').value;
+  const cur=document.getElementById('gd-cur').value;
+  const amt=document.getElementById('gd-amt').value;
+  const date=document.getElementById('gd-date').value;
+  const noteEl=document.getElementById('gd-note');
+  const note=noteEl?noteEl.value.trim():'';
+  const ym=state.currentMonth;
+  const item={id:uid(),desc,medio,cur,amt,date,note};
+  if(!state.gastos_directos[ym])state.gastos_directos[ym]=[];
+  state.gastos_directos[ym].push(item);
+  saveState();
+  ['gd-desc','gd-amt','gd-date','gd-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('frm-gd').style.display='none';
+  renderAll();
+  const medioNorm=medio.toLowerCase();
+  if(medioNorm.includes('efectivo')||medioNorm.includes('billetera')||medioNorm.includes('digital')){
+    const cuentasMatch=state.efectivo.filter(c=>c.cur===cur&&parseFloat(c.amt)>0);
+    if(cuentasMatch.length>0){_gdItem={desc,cur,amt:parseFloat(amt)||0};abrirDescuentoModal(cuentasMatch);return;}
+  }
+}
+function abrirDescuentoModal(cuentas){
+  document.getElementById('desc-gasto-lbl').textContent=_gdItem.desc;
+  document.getElementById('desc-monto-lbl').textContent=_gdItem.cur+' '+fmtN(_gdItem.amt);
+  const cont=document.getElementById('desc-cuentas');
+  cont.innerHTML=cuentas.map(c=>'<button onclick="confirmarDescuento(''+c.id+'')" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;text-align:left;color:var(--text);font-family:var(--sans);width:100%"><div style="font-size:13px;font-weight:600">'+c.desc+'</div><div style="font-size:11px;font-family:var(--mono);color:var(--muted2);margin-top:2px">'+c.cur+' '+fmtN(c.amt)+' disponible</div></button>').join('');
+  document.getElementById('descuento-modal').style.display='flex';
+}
+function closeDescuentoModal(){document.getElementById('descuento-modal').style.display='none';_gdItem=null;}
+function confirmarDescuento(cuentaId){
+  if(!_gdItem)return;
+  const cuenta=state.efectivo.find(c=>c.id===cuentaId);if(!cuenta)return;
+  const saldo=parseFloat(cuenta.amt)||0;
+  const monto=_gdItem.amt;
+  if(monto>saldo){showToast('Monto supera el saldo de '+cuenta.desc);closeDescuentoModal();return;}
+  cuenta.amt=String(Math.round((saldo-monto)*100)/100);
+  saveState();renderAll();showToast('Descontado de '+cuenta.desc);closeDescuentoModal();
+}
+
 function addItem(col,formId,fieldIds){
   const vals=fieldIds.map(id=>document.getElementById(id).value.trim());
   if(!vals[0]){alert('Completá al menos la descripción.');return;}
@@ -1655,15 +1712,14 @@ function renderPrestamosIn(){
       // Capital
       const capitalFmt=`<span style="font-family:var(--mono)">${r.cur==='USD'?'USD':'ARS'} ${fmtN(capital)}</span>`;
 
-      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td>${capitalFmt}</td><td>${tasaFmt}</td><td style="font-size:12px">${vencFmt}</td><td>${cancelFmt}${interesesFmt}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><span class="drag-handle" title="Arrastrar">⠿</span><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>`;
+      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td>${capitalFmt}</td><td>${tasaFmt}</td><td style="font-size:12px">${vencFmt}</td><td>${cancelFmt}${interesesFmt}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>`;
     } else {
       // ── Formato viejo: cuota + cuotas restantes ──
       const c=parseInt(r.cuotas)||0;
       const cuotaCell=c===0?`<span class="badge br">Finalizado</span>`:`<span class="badge ba">${c}</span>`;
-      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td class="mono-cell">${fmtN(r.amt)}</td><td>—</td><td style="font-size:12px;font-family:var(--mono);color:var(--muted)">${r.day?'día '+r.day:'—'}</td><td>${cuotaCell} cuotas</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><span class="drag-handle" title="Arrastrar">⠿</span><button onclick="decrementCuotas('prestamos_in','${r.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:1px 7px;cursor:pointer;font-family:var(--mono)">−1</button><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>`;
+      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td class="mono-cell">${fmtN(r.amt)}</td><td>—</td><td style="font-size:12px;font-family:var(--mono);color:var(--muted)">${r.day?'día '+r.day:'—'}</td><td>${cuotaCell} cuotas</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button onclick="decrementCuotas('prestamos_in','${r.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:1px 7px;cursor:pointer;font-family:var(--mono)">−1</button><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>`;
     }
   }).join('');
-  initDragDrop('tb-pi','prestamos_in');
 }
 
 // ─── RENDER INVERSIONES ────────────────────────────────────────────────
@@ -1765,20 +1821,20 @@ function renderGastosFijosTable(rows){
     const montoCell=adelanto
       ?`<td class="mono-cell"><span style="color:var(--text);font-size:15px">${fmtN(parseFloat(r.amt)-adelanto)}</span><br><span style="color:var(--muted);font-size:11px;text-decoration:line-through">${fmtN(r.amt)}</span></td>`
       :`<td class="mono-cell">${fmtN(r.amt)}</td>`;
-    return`<tr data-id="${r.id}" style="${rowStyle}">
+    return`<tr style="${rowStyle}">
       <td>${r.desc||''} ${badge}${adelantoLine}</td>
       <td>${curBadge(r.cur)}</td>
       ${montoCell}
       <td>${r.day||'—'}</td>
       <td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td>
       <td style="white-space:nowrap">
-        <span class="drag-handle" title="Arrastrar">⠿</span>
+        <button class="btn-edit" onclick="moveItem('${col}','${r.id}',-1)" title="Subir" style="opacity:${idx===0?0.2:1}">↑</button>
+        <button class="btn-edit" onclick="moveItem('${col}','${r.id}',1)" title="Bajar" style="opacity:${idx===rows.length-1?0.2:1}">↓</button>
         <button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button>
         <button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button>
       </td>
     </tr>`;
   }).join('');
-  initDragDrop('tb-gf','gastos_fijos');
 }
 
 function renderEfectivoTable(){
@@ -1786,7 +1842,7 @@ function renderEfectivoTable(){
   const rows=state.efectivo; const col='efectivo'; const cols=['desc','tipo','cur','amt','note'];
   const cerrado=isCerrado(state.currentMonth);
   if(!rows||!rows.length){tb.innerHTML=`<tr><td colspan="${cols.length+2}" class="empty-state">Sin entradas todavía</td></tr>`;return;}
-  tb.innerHTML=rows.map((r,idx)=>`<tr data-id="${r.id}">${cols.map(c=>{
+  tb.innerHTML=rows.map((r,idx)=>`<tr>${cols.map(c=>{
     if(c==='cur')return`<td>${curBadge(r[c])}</td>`;
     if(c==='tipo')return`<td><span class="badge bac">${r[c]}</span></td>`;
     if(c==='amt')return`<td class="mono-cell">${fmtN(r[c])}</td>`;
@@ -1794,11 +1850,11 @@ function renderEfectivoTable(){
     return`<td>${r[c]||''}</td>`;
   }).join('')}<td style="white-space:nowrap;display:flex;gap:4px;align-items:center">
     ${!cerrado?`<button class="btn-cobrar" onclick="abrirUsar('${r.id}')" style="font-size:10px;padding:2px 8px">Usar</button>`:''}
-    <span class="drag-handle" title="Arrastrar">⠿</span>
+    <button class="btn-edit" onclick="moveItem('${col}','${r.id}',-1)" title="Subir" style="opacity:${idx===0?0.2:1}">↑</button>
+    <button class="btn-edit" onclick="moveItem('${col}','${r.id}',1)" title="Bajar" style="opacity:${idx===rows.length-1?0.2:1}">↓</button>
     <button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button>
     <button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button>
   </td></tr>`).join('');
-  initDragDrop('tb-ef','efectivo');
 }
 
 // ─── USAR MODAL ────────────────────────────────────────────────────────
