@@ -1655,14 +1655,15 @@ function renderPrestamosIn(){
       // Capital
       const capitalFmt=`<span style="font-family:var(--mono)">${r.cur==='USD'?'USD':'ARS'} ${fmtN(capital)}</span>`;
 
-      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td>${capitalFmt}</td><td>${tasaFmt}</td><td style="font-size:12px">${vencFmt}</td><td>${cancelFmt}${interesesFmt}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>`;
+      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td>${capitalFmt}</td><td>${tasaFmt}</td><td style="font-size:12px">${vencFmt}</td><td>${cancelFmt}${interesesFmt}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><span class="drag-handle" title="Arrastrar">⠿</span><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>`;
     } else {
       // ── Formato viejo: cuota + cuotas restantes ──
       const c=parseInt(r.cuotas)||0;
       const cuotaCell=c===0?`<span class="badge br">Finalizado</span>`:`<span class="badge ba">${c}</span>`;
-      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td class="mono-cell">${fmtN(r.amt)}</td><td>—</td><td style="font-size:12px;font-family:var(--mono);color:var(--muted)">${r.day?'día '+r.day:'—'}</td><td>${cuotaCell} cuotas</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button onclick="decrementCuotas('prestamos_in','${r.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:1px 7px;cursor:pointer;font-family:var(--mono)">−1</button><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>`;
+      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td class="mono-cell">${fmtN(r.amt)}</td><td>—</td><td style="font-size:12px;font-family:var(--mono);color:var(--muted)">${r.day?'día '+r.day:'—'}</td><td>${cuotaCell} cuotas</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><span class="drag-handle" title="Arrastrar">⠿</span><button onclick="decrementCuotas('prestamos_in','${r.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:1px 7px;cursor:pointer;font-family:var(--mono)">−1</button><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>`;
     }
   }).join('');
+  initDragDrop('tb-pi','prestamos_in');
 }
 
 // ─── RENDER INVERSIONES ────────────────────────────────────────────────
@@ -1764,20 +1765,20 @@ function renderGastosFijosTable(rows){
     const montoCell=adelanto
       ?`<td class="mono-cell"><span style="color:var(--text);font-size:15px">${fmtN(parseFloat(r.amt)-adelanto)}</span><br><span style="color:var(--muted);font-size:11px;text-decoration:line-through">${fmtN(r.amt)}</span></td>`
       :`<td class="mono-cell">${fmtN(r.amt)}</td>`;
-    return`<tr style="${rowStyle}">
+    return`<tr data-id="${r.id}" style="${rowStyle}">
       <td>${r.desc||''} ${badge}${adelantoLine}</td>
       <td>${curBadge(r.cur)}</td>
       ${montoCell}
       <td>${r.day||'—'}</td>
       <td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td>
       <td style="white-space:nowrap">
-        <button class="btn-edit" onclick="moveItem('${col}','${r.id}',-1)" title="Subir" style="opacity:${idx===0?0.2:1}">↑</button>
-        <button class="btn-edit" onclick="moveItem('${col}','${r.id}',1)" title="Bajar" style="opacity:${idx===rows.length-1?0.2:1}">↓</button>
+        <span class="drag-handle" title="Arrastrar">⠿</span>
         <button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button>
         <button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button>
       </td>
     </tr>`;
   }).join('');
+  initDragDrop('tb-gf','gastos_fijos');
 }
 
 function renderEfectivoTable(){
@@ -1785,7 +1786,7 @@ function renderEfectivoTable(){
   const rows=state.efectivo; const col='efectivo'; const cols=['desc','tipo','cur','amt','note'];
   const cerrado=isCerrado(state.currentMonth);
   if(!rows||!rows.length){tb.innerHTML=`<tr><td colspan="${cols.length+2}" class="empty-state">Sin entradas todavía</td></tr>`;return;}
-  tb.innerHTML=rows.map((r,idx)=>`<tr>${cols.map(c=>{
+  tb.innerHTML=rows.map((r,idx)=>`<tr data-id="${r.id}">${cols.map(c=>{
     if(c==='cur')return`<td>${curBadge(r[c])}</td>`;
     if(c==='tipo')return`<td><span class="badge bac">${r[c]}</span></td>`;
     if(c==='amt')return`<td class="mono-cell">${fmtN(r[c])}</td>`;
@@ -1793,11 +1794,11 @@ function renderEfectivoTable(){
     return`<td>${r[c]||''}</td>`;
   }).join('')}<td style="white-space:nowrap;display:flex;gap:4px;align-items:center">
     ${!cerrado?`<button class="btn-cobrar" onclick="abrirUsar('${r.id}')" style="font-size:10px;padding:2px 8px">Usar</button>`:''}
-    <button class="btn-edit" onclick="moveItem('${col}','${r.id}',-1)" title="Subir" style="opacity:${idx===0?0.2:1}">↑</button>
-    <button class="btn-edit" onclick="moveItem('${col}','${r.id}',1)" title="Bajar" style="opacity:${idx===rows.length-1?0.2:1}">↓</button>
+    <span class="drag-handle" title="Arrastrar">⠿</span>
     <button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button>
     <button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button>
   </td></tr>`).join('');
+  initDragDrop('tb-ef','efectivo');
 }
 
 // ─── USAR MODAL ────────────────────────────────────────────────────────
