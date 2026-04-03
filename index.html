@@ -926,6 +926,7 @@ let state={
   inversiones:[],efectivo:[],
   gastos_directos:{},
   gf_pagos:{},
+  gf_overrides:{},
   prestamos_out:[],prestamos_in:[],
   prestamos_cancelados:[],
   cobros:{},
@@ -935,7 +936,7 @@ let state={
   retiro_jubilacion:{saldo:2882166.65, fecha_snapshot:'2026-03-01', edad_cobro:65, prima_mensual_ars:76008, dia_debito:13},
   fx:1420,currentMonth:new Date().toISOString().slice(0,7)
 };
-const STATE_KEYS=['ingresos_fijos','ingresos_espo','gastos_fijos','da_fijos','tarjetas','gastos_directos','gf_pagos','inversiones','efectivo','prestamos_out','prestamos_in','prestamos_cancelados','cobros','cierres','notas','seguros_capitalizacion','retiro_jubilacion','fx','currentMonth'];
+const STATE_KEYS=['ingresos_fijos','ingresos_espo','gastos_fijos','da_fijos','tarjetas','gastos_directos','gf_pagos','gf_overrides','inversiones','efectivo','prestamos_out','prestamos_in','prestamos_cancelados','cobros','cierres','notas','seguros_capitalizacion','retiro_jubilacion','fx','currentMonth'];
 function saveState(){ state._savedAt=new Date().toISOString(); STATE_KEYS.forEach(k=>lsSet(k,state[k])); lsSet('_savedAt',state._savedAt); driveSaveDebounced(); }
 
 // ─── DA HELPERS ────────────────────────────────────────────────────────
@@ -1026,10 +1027,11 @@ function calcMonth(ym){
   (state.ingresos_espo[ym]||[]).forEach(r=>r.cur==='ARS'?ia+=parseFloat(r.amt)||0:iu+=parseFloat(r.amt)||0);
   state.prestamos_out.forEach(r=>{ const cuotasEnMes = prestamoCuotasEnMes(r, ym); if(cuotasEnMes > 0 && !isCobrado('prestamos_out',r.id,ym)){ r.cur==='ARS'?ia+=parseFloat(r.amt)||0:iu+=parseFloat(r.amt)||0; } });
   state.gastos_fijos.forEach(r=>{
-    // Si hay snapshot del mes cerrado, usar el monto guardado en ese momento
+    // Prioridad: snapshot de cierre > override de mes abierto > valor global
     const snap=cierre&&cierre.gf_amts&&cierre.gf_amts[r.id];
-    const amt=parseFloat(snap?snap.amt:r.amt)||0;
-    const cur=snap?snap.cur:r.cur;
+    const ovr=!cierre&&state.gf_overrides&&state.gf_overrides[ym]&&state.gf_overrides[ym][r.id];
+    const amt=parseFloat(snap?snap.amt:ovr?ovr.amt:r.amt)||0;
+    const cur=snap?snap.cur:ovr?ovr.cur:r.cur;
     cur==='ARS'?ga+=amt:gu+=amt;
   });
   state.da_fijos.forEach(r=>{
@@ -1986,7 +1988,7 @@ function renderAll(){
   const cierre=isCerrado(ym)?state.cierres[ym]:null;
   const gfVista = cierre&&cierre.gf_amts
     ? state.gastos_fijos.map(r=>{ const s=cierre.gf_amts[r.id]; return s?{...r,amt:s.amt,cur:s.cur}:r; })
-    : state.gastos_fijos;
+    : state.gastos_fijos.map(r=>{ const o=state.gf_overrides&&state.gf_overrides[ym]&&state.gf_overrides[ym][r.id]; return o?{...r,amt:o.amt,cur:o.cur}:r; });
   renderTable('tb-if',state.ingresos_fijos[ym]||[],['desc','cur','amt','day','note'],'ingresos_fijos');
   renderTable('tb-ie',state.ingresos_espo[ym]||[],['desc','cur','amt','date','note'],'ingresos_espo');
   renderGastosFijosTable(gfVista);
@@ -2281,7 +2283,8 @@ function renderResumen(){
   // Para display del detalle: gastos_fijos y da_fijos con snapshot si mes cerrado
   const gfDisplay=state.gastos_fijos.map(r=>{
     const snap=cerrado&&state.cierres[ym].gf_amts&&state.cierres[ym].gf_amts[r.id];
-    return snap?{...r,amt:snap.amt,cur:snap.cur}:r;
+    const ovr=!cerrado&&state.gf_overrides&&state.gf_overrides[ym]&&state.gf_overrides[ym][r.id];
+    return snap?{...r,amt:snap.amt,cur:snap.cur}:ovr?{...r,amt:ovr.amt,cur:ovr.cur}:r;
   });
   const daActive=state.da_fijos.filter(r=>daCuotaActual(r,ym).activo).map(r=>{
     const snap=cerrado&&state.cierres[ym].da_amts&&state.cierres[ym].da_amts[r.id];
@@ -2490,6 +2493,29 @@ function saveEdit(){
   if(!_eCol||!_eId)return;
   const arr=['ingresos_fijos','ingresos_espo','tarjetas','gastos_directos'].includes(_eCol)?(state[_eCol][state.currentMonth]||[]):state[_eCol];
   const item=arr.find(r=>r.id===_eId); if(!item)return;
+  // Para gastos_fijos: si cambia amt o cur, guardar override para meses anteriores abiertos
+  if(_eCol==='gastos_fijos'){
+    const oldAmt=item.amt, oldCur=item.cur;
+    const newAmt=document.getElementById('mf-amt')?.value||oldAmt;
+    const newCur=document.getElementById('mf-cur')?.value||oldCur;
+    if(oldAmt!==newAmt||oldCur!==newCur){
+      if(!state.gf_overrides)state.gf_overrides={};
+      // Todos los meses con datos que sean < currentMonth y no cerrados
+      const mesesConDatos=new Set([
+        ...Object.keys(state.tarjetas||{}),
+        ...Object.keys(state.gastos_directos||{}),
+        ...Object.keys(state.ingresos_espo||{})
+      ]);
+      mesesConDatos.forEach(ym=>{
+        if(ym<state.currentMonth&&!isCerrado(ym)){
+          if(!state.gf_overrides[ym])state.gf_overrides[ym]={};
+          // Solo guardar si no hay ya un override para ese mes
+          if(!state.gf_overrides[ym][_eId])
+            state.gf_overrides[ym][_eId]={amt:oldAmt,cur:oldCur};
+        }
+      });
+    }
+  }
   (FDEFS[_eCol]||[]).forEach(f=>{const el=document.getElementById('mf-'+f.k);if(el)item[f.k]=el.value;});
   saveState();closeEditModal();renderAll();showToast('✓ Cambios guardados');
 }
@@ -2514,6 +2540,7 @@ function importData(event){
       if(state.da_fijos&&state.da_fijos.length){ state.da_fijos.forEach(r=>{ if(!r.inicio)r.inicio=state.currentMonth; if(!r.cuotas_total&&r.cuotas!==undefined){r.cuotas_total=r.cuotas;delete r.cuotas;} }); }
       if(!state.seguros_capitalizacion) state.seguros_capitalizacion=[];
       if(!state.gf_pagos) state.gf_pagos={};
+      if(!state.gf_overrides) state.gf_overrides={};
       // migrar ingresos_fijos de array a objeto mensual si viene del formato viejo
       if(Array.isArray(state.ingresos_fijos)){
         const ym=state.currentMonth;
