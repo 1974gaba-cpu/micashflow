@@ -298,16 +298,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
         <span class="collapse-icon" style="transform:rotate(-90deg)">▾</span>
       </div>
       <div id="body-tc" style="display:none">
-        <table class="tbl"><thead><tr><th>Tarjeta</th><th>Moneda</th><th>Monto resumen</th><th>Fecha consumo</th><th>Nota</th><th></th></tr></thead><tbody id="tb-tc"></tbody></table>
+        <table class="tbl"><thead><tr><th>Descripción</th><th>Tarjeta</th><th>Moneda</th><th>Monto resumen</th><th>Fecha consumo</th><th>Nota</th><th></th></tr></thead><tbody id="tb-tc"></tbody></table>
         <button class="btn-toggle" onclick="toggleForm('frm-tc')">+ Cargar nuevo consumo</button>
         <div class="add-form" id="frm-tc" style="display:none">
           <div class="form-row">
-            <div class="fg" style="flex:2"><label>Tarjeta</label><input id="tc-desc" placeholder="Ej: Visa Galicia, Amex"></div>
+            <div class="fg" style="flex:2"><label>Descripción</label><input id="tc-desc" placeholder="Ej: Edenor, Coto, Farmacia"></div>
+            <div class="fg" style="flex:2"><label>Tarjeta</label><input id="tc-tar" placeholder="Ej: Visa Credicoop" list="tc-tar-list" autocomplete="off"><datalist id="tc-tar-list"></datalist></div>
             <div class="fg"><label>Moneda</label><select id="tc-cur"><option value="ARS">ARS</option><option value="USD">USD</option></select></div>
             <div class="fg"><label>Monto resumen</label><input id="tc-amt" type="number" placeholder="0"></div>
             <div class="fg"><label>Fecha consumo</label><input id="tc-date" type="date"></div>
             <div class="fg" style="flex:2"><label>Nota</label><input id="tc-note" placeholder="Ej: incluye viaje"></div>
-            <button class="btn-add" onclick="addItem('tarjetas','frm-tc',['tc-desc','tc-cur','tc-amt','tc-date','tc-note'])">Agregar</button>
+            <button class="btn-add" onclick="addItem('tarjetas','frm-tc',['tc-desc','tc-tar','tc-cur','tc-amt','tc-date','tc-note'])">Agregar</button>
           </div>
         </div>
       </div>
@@ -1115,7 +1116,7 @@ function goTab(tab,el){
 // ─── ADD ITEMS ─────────────────────────────────────────────────────────
 const FMAP={
   ingresos_fijos:['desc','cur','amt','day','note'],ingresos_espo:['desc','cur','amt','date','note'],
-  gastos_fijos:['desc','cur','amt','day','note'],tarjetas:['desc','cur','amt','date','note'],
+  gastos_fijos:['desc','cur','amt','day','note'],tarjetas:['desc','tarjeta','cur','amt','date','note'],
   gastos_directos:['desc','medio','cur','amt','date','note'],inversiones:['desc','broker','tipo','cur','val','liq','note'],
   efectivo:['desc','tipo','cur','amt','note'],prestamos_out:['desc','cur','amt','cuotas','day','note','inicio'],
   prestamos_in:['desc','cur','amt','cuotas','day','note'],
@@ -1710,17 +1711,41 @@ function renderEfectivoTotal(){
 
 // ─── RENDER EFECTIVO TABLE (con botón Usar) ────────────────────────────
 // ─── RENDER GASTOS FIJOS TABLE (con estado pagado) ────────────────────
+// ─── GF_PAGOS HELPERS (soporta parcial) ──────────────────────────────────
+function gfMigrate(){
+  // Migrar formato viejo (array) a nuevo ({id: monto|true})
+  if(!state.gf_pagos) state.gf_pagos={};
+  Object.keys(state.gf_pagos).forEach(ym=>{
+    if(Array.isArray(state.gf_pagos[ym])){
+      const obj={};
+      state.gf_pagos[ym].forEach(id=>{ obj[id]=true; });
+      state.gf_pagos[ym]=obj;
+    }
+  });
+}
+function gfIsPagado(ym,id){ gfMigrate(); const p=state.gf_pagos[ym]; return !!(p&&p[id]===true); }
+function gfGetAdelanto(ym,id){ gfMigrate(); const p=state.gf_pagos[ym]; return p&&typeof p[id]==='number'?p[id]:null; }
+function gfSetPago(ym,id,monto,gfAmt){
+  gfMigrate();
+  if(!state.gf_pagos[ym]) state.gf_pagos[ym]={};
+  state.gf_pagos[ym][id]=(Math.abs(monto-(parseFloat(gfAmt)||0))<0.01)?true:monto;
+}
+
 function renderGastosFijosTable(rows){
   const tb=document.getElementById('tb-gf'); if(!tb)return;
   const ym=state.currentMonth; const col='gastos_fijos';
-  const pagados=(state.gf_pagos&&state.gf_pagos[ym])||[];
+  gfMigrate();
   if(!rows||!rows.length){tb.innerHTML=`<tr><td colspan="7" class="empty-state">Sin entradas todavía</td></tr>`;return;}
   tb.innerHTML=rows.map((r,idx)=>{
-    const pagado=pagados.includes(r.id);
+    const pagado=gfIsPagado(ym,r.id);
+    const adelanto=gfGetAdelanto(ym,r.id);
     const rowStyle=pagado?'opacity:0.45;':'';
     const badge=pagado?`<span class="badge bg" style="font-size:9px;padding:1px 5px">✓ pagado</span>`:'';
+    const adelantoLine=adelanto
+      ?`<div style="margin-top:3px;font-size:10px;font-family:var(--mono);color:var(--muted2)">adelanto: ${r.cur} ${fmtN(adelanto)} · quedan ${r.cur} ${fmtN(parseFloat(r.amt)-adelanto)}</div>`
+      :'';
     return`<tr style="${rowStyle}">
-      <td>${r.desc||''} ${badge}</td>
+      <td>${r.desc||''} ${badge}${adelantoLine}</td>
       <td>${curBadge(r.cur)}</td>
       <td class="mono-cell">${fmtN(r.amt)}</td>
       <td>${r.day||'—'}</td>
@@ -1766,13 +1791,18 @@ function abrirUsar(id){
   document.getElementById('usar-saldo-lbl').textContent=`${cuenta.cur} ${fmtN(cuenta.amt)}`;
   // Moneda labels
   ['usar-gasto-cur','usar-gasto-cur2','usar-cancel-cur','usar-inv-cur','usar-po-cur'].forEach(eid=>{const el=document.getElementById(eid);if(el)el.textContent=cuenta.cur;});
-  // Gastos fijos select (filtrados por moneda + no pagados este mes)
+  // Gastos fijos select (filtrados por moneda + no pagados totalmente este mes)
   const ym=state.currentMonth;
-  const pagados=(state.gf_pagos&&state.gf_pagos[ym])||[];
+  gfMigrate();
   const selGF=document.getElementById('usar-gf-select');
-  const gfDisp=state.gastos_fijos.filter(r=>r.cur===cuenta.cur&&!pagados.includes(r.id));
+  const gfDisp=state.gastos_fijos.filter(r=>r.cur===cuenta.cur&&!gfIsPagado(ym,r.id));
   selGF.innerHTML=gfDisp.length
-    ?gfDisp.map(r=>`<option value="${r.id}" data-amt="${r.amt}">${r.desc} — ${fmtN(r.amt)}</option>`).join('')
+    ?gfDisp.map(r=>{
+        const adelanto=gfGetAdelanto(ym,r.id);
+        const quedan=adelanto?parseFloat(r.amt)-adelanto:parseFloat(r.amt);
+        const lbl=adelanto?`${r.desc} — ${fmtN(quedan)} (quedan de ${fmtN(r.amt)})`:`${r.desc} — ${fmtN(r.amt)}`;
+        return`<option value="${r.id}" data-amt="${quedan}" data-gfamt="${r.amt}">${lbl}</option>`;
+      }).join('')
     :`<option value="">— Sin gastos fijos pendientes en ${cuenta.cur} —</option>`;
   precargarMontoGF();
   // Inversiones select
@@ -1846,16 +1876,19 @@ function confirmarUsar(){
       // Pagar gasto fijo existente
       const gfId=document.getElementById('usar-gf-select').value;
       const monto=parseFloat(document.getElementById('usar-gasto-amt').value);
+      const opt=document.getElementById('usar-gf-select').options[document.getElementById('usar-gf-select').selectedIndex];
+      const gfAmt=opt?parseFloat(opt.dataset.gfamt||opt.dataset.amt||0):0;
       if(!gfId){showToast('⚠ No hay gasto fijo disponible para pagar');return;}
       if(!monto||monto<=0){showToast('⚠ Ingresá un monto válido');return;}
       if(monto>saldo){showToast('⚠ Monto supera el saldo disponible');return;}
-      // Marcar como pagado este mes
-      if(!state.gf_pagos)state.gf_pagos={};
-      if(!state.gf_pagos[ym])state.gf_pagos[ym]=[];
-      if(!state.gf_pagos[ym].includes(gfId))state.gf_pagos[ym].push(gfId);
+      // Registrar pago (parcial o total)
+      gfSetPago(ym,gfId,monto,gfAmt);
       // Descontar saldo
       cuenta.amt=String(saldo-monto);
-      saveState();renderAll();showToast('✓ Gasto fijo marcado como pagado y saldo descontado');closeUsarModal();
+      const esParcial=!gfIsPagado(ym,gfId);
+      saveState();renderAll();
+      showToast(esParcial?'✓ Adelanto registrado y saldo descontado':'✓ Gasto fijo pagado y saldo descontado');
+      closeUsarModal();
     }else{
       // Gasto libre → gastos directos
       const desc=document.getElementById('usar-gasto-desc').value.trim();
@@ -1936,6 +1969,7 @@ function renderTable(tbodyId,rows,cols,col){
   tb.innerHTML=rows.map((r,idx)=>`<tr>${cols.map(c=>{
     if(c==='cur')return`<td>${curBadge(r[c])}</td>`;if(c==='liq')return`<td>${liqBadge(r[c])}</td>`;
     if(c==='tipo')return`<td><span class="badge bac">${r[c]}</span></td>`;if(c==='medio')return`<td><span class="badge bb">${r[c]||'—'}</span></td>`;
+    if(c==='tarjeta')return`<td><span style="font-size:11px;font-family:var(--mono);color:var(--muted2)">${r[c]||'—'}</span></td>`;
     if(c==='amt'||c==='val')return`<td class="mono-cell">${fmtN(r[c])}</td>`;
     if(c==='note')return`<td class="note-cell" title="${(r[c]||'').replace(/"/g,'&quot;')}">${r[c]||'—'}</td>`;
     return`<td>${r[c]||''}</td>`;
@@ -1957,7 +1991,15 @@ function renderAll(){
   renderTable('tb-ie',state.ingresos_espo[ym]||[],['desc','cur','amt','date','note'],'ingresos_espo');
   renderGastosFijosTable(gfVista);
   renderDA(ym);
-  renderTable('tb-tc',state.tarjetas[ym]||[],['desc','cur','amt','date','note'],'tarjetas');
+  // Sort tarjetas por tarjeta y poblar datalist
+  const tcRows = (state.tarjetas[ym]||[]).slice().sort((a,b)=>(a.tarjeta||'').localeCompare(b.tarjeta||''));
+  renderTable('tb-tc',tcRows,['desc','tarjeta','cur','amt','date','note'],'tarjetas');
+  // Poblar datalist de tarjetas con valores únicos de da_fijos + tarjetas
+  const tarjetasSet = new Set();
+  (state.da_fijos||[]).forEach(r=>{ if(r.tarjeta) tarjetasSet.add(r.tarjeta); });
+  (state.tarjetas[ym]||[]).forEach(r=>{ if(r.tarjeta) tarjetasSet.add(r.tarjeta); });
+  const dl = document.getElementById('tc-tar-list');
+  if(dl) dl.innerHTML = [...tarjetasSet].sort().map(t=>`<option value="${t}">`).join('');
   renderTable('tb-gd',state.gastos_directos[ym]||[],['desc','medio','cur','amt','date','note'],'gastos_directos');
   renderInversiones();
   renderEfectivoTable();
@@ -2418,7 +2460,7 @@ const FDEFS={
   ingresos_fijos:[{k:'desc',l:'Descripción',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'day',l:'Día cobro',t:'number'},{k:'note',l:'Nota',t:'text'}],
   ingresos_espo:[{k:'desc',l:'Descripción',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'date',l:'Fecha',t:'date'},{k:'note',l:'Nota',t:'text'}],
   gastos_fijos:[{k:'desc',l:'Descripción',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'day',l:'Día vto.',t:'number'},{k:'note',l:'Nota',t:'text'}],
-  tarjetas:[{k:'desc',l:'Tarjeta',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'date',l:'Fecha consumo',t:'date'},{k:'note',l:'Nota',t:'text'}],
+  tarjetas:[{k:'desc',l:'Descripción',t:'text'},{k:'tarjeta',l:'Tarjeta',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'date',l:'Fecha consumo',t:'date'},{k:'note',l:'Nota',t:'text'}],
   gastos_directos:[{k:'desc',l:'Descripción',t:'text'},{k:'medio',l:'Medio',t:'select',o:['Efectivo','Billetera digital','Transferencia']},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'date',l:'Fecha',t:'date'},{k:'note',l:'Nota',t:'text'}],
   inversiones:[{k:'desc',l:'Ticker',t:'text'},{k:'broker',l:'Broker',t:'text'},{k:'tipo',l:'Tipo',t:'select',o:['Fondo','CEDEAR','Acción','Bono','Otro']},{k:'cur',l:'Moneda',t:'select',o:['USD','ARS']},{k:'val',l:'Valor actual',t:'number'},{k:'val_inicial',l:'Valor inicial (invertido)',t:'number'},{k:'num_compras',l:'Nº compras',t:'number'},{k:'fecha_inicio',l:'Fecha inicio',t:'date'},{k:'liq',l:'Liquidez',t:'select',o:['Inmediata','Corto','Medio','Largo']},{k:'note',l:'Nota',t:'text'}],
   efectivo:[{k:'desc',l:'Descripción',t:'text'},{k:'tipo',l:'Tipo',t:'select',o:['Efectivo','Billetera digital','Cuenta bancaria','Otro']},{k:'cur',l:'Moneda',t:'select',o:['USD','ARS']},{k:'amt',l:'Monto',t:'number'},{k:'note',l:'Nota',t:'text'}],
