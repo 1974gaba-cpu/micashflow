@@ -269,6 +269,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
         </div>
       </div>
     </div>
+    <div id="total-tarjetas-card" style="margin-bottom:14px"></div>
     <div class="card">
       <div class="card-title collapsible" onclick="toggleCard('body-da')">
         <span class="dot da"></span>Débitos automáticos & cuotas en tarjeta
@@ -281,7 +282,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
         <div class="add-form" id="frm-da" style="display:none">
           <div class="form-row">
             <div class="fg" style="flex:2"><label>Descripción</label><input id="da-desc" placeholder="Ej: Netflix, Cuotas TV"></div>
-            <div class="fg" style="flex:2"><label>Tarjeta</label><input id="da-tar" placeholder="Ej: Visa Credicoop"></div>
+            <div class="fg" style="flex:2"><label>Tarjeta</label><input id="da-tar" placeholder="Ej: Visa Credicoop" list="da-tar-list" autocomplete="off"><datalist id="da-tar-list"></datalist></div>
             <div class="fg"><label>Moneda</label><select id="da-cur"><option value="ARS">ARS</option><option value="USD">USD</option></select></div>
             <div class="fg"><label>Monto por cuota</label><input id="da-amt" type="number" placeholder="0"></div>
             <div class="fg"><label>Cuotas totales</label><input id="da-total" type="number" placeholder="Ej: 6 (o 0=fijo)"></div>
@@ -1656,6 +1657,92 @@ function renderDA(ym){
     return`<tr data-id="${r.id}" style="${rowStyle}"><td>${r.desc}</td><td style="font-size:12px;color:var(--muted2)">${r.tarjeta||'—'}</td><td>${curBadge(r.cur)}</td><td class="mono-cell" style="${!activo?'text-decoration:line-through':''}">${fmtN(r.amt)}</td><td>${progreso}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><span class="drag-handle" title="Arrastrar">⠿</span><button class="btn-edit" onclick="openEditDA('${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('da_fijos','${r.id}')">×</button></td></tr>`;
   }).join('');
   initDragDrop('tb-da','da_fijos');
+
+  // Poblar datalist autocomplete tarjeta
+  const daDl = document.getElementById('da-tar-list');
+  if(daDl){
+    const tarjSet = [...new Set(state.da_fijos.map(r=>r.tarjeta||'').filter(Boolean).sort())];
+    daDl.innerHTML = tarjSet.map(t=>`<option value="${t}">`).join('');
+  }
+
+  // Poblar también el datalist del modal quick-add DA
+  const qdaDl = document.getElementById('qda-tar-list');
+  if(qdaDl){
+    const tarjSet2 = [...new Set(state.da_fijos.map(r=>r.tarjeta||'').filter(Boolean).sort())];
+    qdaDl.innerHTML = tarjSet2.map(t=>`<option value="${t}">`).join('');
+  }
+
+  // ─ Renderizar card totales tarjetas ─
+  renderTotalTarjetas(ym, activos);
+}
+
+function renderTotalTarjetas(ym, daActivos){
+  const card = document.getElementById('total-tarjetas-card');
+  if(!card) return;
+
+  // Totales DA por emisor (solo ARS por ahora, USD separado)
+  const totDA = {};
+  daActivos.forEach(r=>{
+    if(r.cur !== 'ARS') return;
+    const tar = r.tarjeta || 'Sin tarjeta';
+    totDA[tar] = (totDA[tar]||0) + (parseFloat(r.amt)||0);
+  });
+  const totDA_USD = {};
+  daActivos.forEach(r=>{
+    if(r.cur !== 'USD') return;
+    const tar = r.tarjeta || 'Sin tarjeta';
+    totDA_USD[tar] = (totDA_USD[tar]||0) + (parseFloat(r.amt)||0);
+  });
+
+  // Totales tarjetas 1 pago por emisor
+  const totTC = {};
+  (state.tarjetas[ym]||[]).forEach(r=>{
+    if(r.cur !== 'ARS') return;
+    const tar = r.tarjeta || 'Sin tarjeta';
+    totTC[tar] = (totTC[tar]||0) + (parseFloat(r.amt)||0);
+  });
+
+  // Combinar por emisor
+  const emisores = [...new Set([...Object.keys(totDA), ...Object.keys(totTC)])].sort();
+  let totalGeneral = 0;
+  const filas = emisores.map(tar=>{
+    const da = totDA[tar]||0;
+    const tc = totTC[tar]||0;
+    const sub = da + tc;
+    totalGeneral += sub;
+    return {tar, da, tc, sub};
+  });
+
+  if(!totalGeneral && !Object.keys(totDA_USD).length){
+    card.innerHTML=''; return;
+  }
+
+  const emisoresHtml = filas.map(f=>`
+    <div style="display:flex;flex-direction:column;gap:2px;background:var(--surface2);border-radius:8px;padding:8px 12px;min-width:140px">
+      <div style="font-size:10px;font-family:var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${f.tar}</div>
+      <div style="font-size:14px;font-weight:500;font-family:var(--mono);color:var(--text)">$${fmtN(f.sub)}</div>
+      ${f.da>0&&f.tc>0?`<div style="font-size:10px;font-family:var(--mono);color:var(--muted)">DA: $${fmtN(f.da)} · 1p: $${fmtN(f.tc)}</div>`:''}
+    </div>`).join('');
+
+  const usdHtml = Object.entries(totDA_USD).map(([tar,v])=>`
+    <div style="display:flex;flex-direction:column;gap:2px;background:var(--surface2);border-radius:8px;padding:8px 12px;min-width:140px">
+      <div style="font-size:10px;font-family:var(--mono);color:var(--muted)">${tar} · USD</div>
+      <div style="font-size:14px;font-weight:500;font-family:var(--mono);color:var(--green)">USD ${fmtN(v)}</div>
+    </div>`).join('');
+
+  card.innerHTML=`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:14px 18px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="dot da" style="flex-shrink:0"></span>
+          <span style="font-size:11px;font-family:var(--mono);color:var(--muted);letter-spacing:.5px;text-transform:uppercase">Total tarjetas · ${mlabel(ym)}</span>
+        </div>
+        <div style="font-family:var(--mono);font-size:20px;font-weight:500;color:var(--red)">ARS $${fmtN(totalGeneral)}</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${emisoresHtml}${usdHtml}
+      </div>
+    </div>`;
 }
 
 // ─── RENDER PRESTAMOS ──────────────────────────────────────────────────
