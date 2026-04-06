@@ -1551,12 +1551,30 @@ function renderPartidoCuentas(slot, cur){
 
 function selectPartidoCuenta(slot, efId, cuentaCur){
   if(slot===1){_partidoEfId1=efId;}else{_partidoEfId2=efId;}
-  const cur=state[`prestamos_out`]||[];// no usado aquí
-  // Mostrar TC si la moneda de la cuenta es diferente al cobro
-  const item=state[_cobroCol]?.find(r=>r.id===_cobroId);
+  // Buscar item correctamente según col (puede ser mensual o global)
+  const _MONTHLY=['ingresos_fijos','ingresos_espo'];
+  const ym=state.currentMonth;
+  const item=_MONTHLY.includes(_cobroCol)
+    ? (state[_cobroCol][ym]||[]).find(r=>r.id===_cobroId)
+    : state[_cobroCol]?.find(r=>r.id===_cobroId);
   const cobroCur=item?item.cur:'USD';
   const tcWrap=document.getElementById(`partido-tc-wrap-${slot}`);
-  if(tcWrap) tcWrap.style.display=cuentaCur!==cobroCur?'block':'none';
+  const diferente=cuentaCur!==cobroCur;
+  if(tcWrap) tcWrap.style.display=diferente?'block':'none';
+  // Mostrar equivalente ARS estimado
+  if(diferente&&item){
+    const amtField=document.getElementById(`partido-amt-${slot}`);
+    const tc=parseFloat(document.getElementById(`partido-tc-${slot}`).value)||parseFloat(state.fx)||1;
+    const amtVal=parseFloat(amtField?.value)||0;
+    let hintEl=document.getElementById(`partido-equiv-${slot}`);
+    if(!hintEl){
+      hintEl=document.createElement('div');
+      hintEl.id=`partido-equiv-${slot}`;
+      hintEl.style.cssText='font-size:10px;font-family:var(--mono);color:var(--green);margin-top:4px';
+      tcWrap.parentNode.insertBefore(hintEl,tcWrap.nextSibling);
+    }
+    hintEl.textContent=amtVal>0?`≈ ${cuentaCur} ${fmtN(Math.round(amtVal*tc*100)/100)}`:`↳ Se convierte: monto × TC → ${cuentaCur}`;
+  }
   // Marcar selección visual
   document.querySelectorAll(`#partido-cuentas-${slot} .cobro-cuenta-opt`).forEach(el=>{
     const sel=el.dataset.id===efId;
@@ -1603,6 +1621,8 @@ function activarPagoPartido(){
   document.getElementById('partido-error').style.display='none';
   document.getElementById('partido-tc-wrap-1').style.display='none';
   document.getElementById('partido-tc-wrap-2').style.display='none';
+  document.getElementById('partido-tc-1').value=state.fx||'';
+  document.getElementById('partido-tc-2').value=state.fx||'';
   document.getElementById('partido-otra-1').style.display='none';
   document.getElementById('partido-otra-2').style.display='none';
   document.getElementById('btn-partido-otra-1').textContent='+ Otra cuenta';
@@ -1614,7 +1634,12 @@ function activarPagoPartido(){
 function desactivarPagoPartido(){ _cobroPartido=false; document.getElementById('cobro-modo-simple').style.display='block'; document.getElementById('cobro-modo-partido').style.display='none'; }
 
 function calcPartidoResto(){
-  const item=state[_cobroCol]?.find(r=>r.id===_cobroId); if(!item)return;
+  const _MONTHLY=['ingresos_fijos','ingresos_espo'];
+  const ym=state.currentMonth;
+  const item=_MONTHLY.includes(_cobroCol)
+    ? (state[_cobroCol][ym]||[]).find(r=>r.id===_cobroId)
+    : state[_cobroCol]?.find(r=>r.id===_cobroId);
+  if(!item)return;
   const total=parseFloat(item.amt)||0;
   const amt1=parseFloat(document.getElementById('partido-amt-1').value)||0;
   const resto=Math.round((total-amt1)*100)/100;
@@ -1622,6 +1647,17 @@ function calcPartidoResto(){
   const errEl=document.getElementById('partido-error');
   if(amt1>total){errEl.textContent=`El monto (${fmtN(amt1)}) supera el total (${fmtN(total)})`;errEl.style.display='block';}
   else errEl.style.display='none';
+  // Actualizar equivalentes si hay cuentas de distinta moneda
+  [1,2].forEach(slot=>{
+    const efId=slot===1?_partidoEfId1:_partidoEfId2;
+    if(!efId)return;
+    const c=state.efectivo.find(x=>x.id===efId);
+    if(!c||c.cur===item.cur)return;
+    const amt=parseFloat(document.getElementById(`partido-amt-${slot}`).value)||0;
+    const tc=parseFloat(document.getElementById(`partido-tc-${slot}`).value)||parseFloat(state.fx)||1;
+    const hintEl=document.getElementById(`partido-equiv-${slot}`);
+    if(hintEl&&amt>0) hintEl.textContent=`≈ ${c.cur} ${fmtN(Math.round(amt*tc*100)/100)}`;
+  });
 }
 function closeCobroModal(){ document.getElementById('cobro-modal').classList.remove('show'); _cobroCol=null;_cobroId=null;_cobroDestino=null;_cobroPartido=false;_cobroEfectivoId=null; }
 
@@ -1908,6 +1944,13 @@ function renderCancelados(){
 function delCancelado(id){ state.prestamos_cancelados=state.prestamos_cancelados.filter(r=>r.id!==id); saveState();renderCancelados(); }
 
 // ─── RENDER PRESTAMOS IN ───────────────────────────────────────────────
+function eliminarPagoParcial(piId, pagoId){
+  const pi=state.prestamos_in.find(r=>r.id===piId); if(!pi||!pi.pagos_parciales)return;
+  if(!confirm('¿Eliminar este pago del historial? No revierte el capital.'))return;
+  pi.pagos_parciales=pi.pagos_parciales.filter(p=>p.id!==pagoId);
+  saveState();renderAll();showToast('Pago eliminado del historial');
+}
+
 function renderPrestamosIn(){
   const tb=document.getElementById('tb-pi'); if(!tb)return;
   const ym=state.currentMonth;
@@ -1948,7 +1991,21 @@ function renderPrestamosIn(){
       // Capital
       const capitalFmt=`<span style="font-family:var(--mono)">${r.cur==='USD'?'USD':'ARS'} ${fmtN(capital)}</span>`;
 
-      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td>${capitalFmt}</td><td>${tasaFmt}</td><td style="font-size:12px">${vencFmt}</td><td>${cancelFmt}${interesesFmt}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><span class="drag-handle" title="Arrastrar">⠿</span><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>`;
+      const historialRows=(pi.pagos_parciales&&pi.pagos_parciales.length)
+        ? pi.pagos_parciales.map(p=>{
+            const intFmt=parseFloat(p.int_devengado)>0
+              ? `<span style="color:var(--amber);font-family:var(--mono);font-size:11px"> · int. dev: ${r.cur==='USD'?'USD':'ARS'} ${fmtN(p.int_devengado)}</span>`
+              : '';
+            return`<tr style="background:var(--surface2);opacity:0.85">
+              <td colspan="2" style="padding-left:28px;font-size:11px;font-family:var(--mono);color:var(--muted)">└ ${p.fecha||'—'}</td>
+              <td colspan="2" style="font-size:11px;font-family:var(--mono);color:var(--green)">−${r.cur==='USD'?'USD':'ARS'} ${fmtN(p.monto)} desde ${p.cuenta_desc||'—'}</td>
+              <td colspan="2" style="font-size:11px;font-family:var(--mono);color:var(--muted2)">${r.cur==='USD'?'USD':'ARS'} ${fmtN(p.capital_antes)} → <span style="color:var(--text)">${fmtN(p.capital_despues)}</span>${intFmt}</td>
+              <td colspan="2" style="text-align:right"><button onclick="eliminarPagoParcial('${r.id}','${p.id}')" title="Eliminar este pago" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 6px">×</button></td>
+            </tr>`;
+          }).join('')
+        : '';
+
+      return`<tr data-id="${r.id}"><td>${r.desc}</td><td>${curBadge(r.cur)}</td><td>${capitalFmt}</td><td>${tasaFmt}</td><td style="font-size:12px">${vencFmt}</td><td>${cancelFmt}${interesesFmt}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><span class="drag-handle" title="Arrastrar">⠿</span><button class="btn-edit" onclick="openEditModal('prestamos_in','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('prestamos_in','${r.id}')">×</button></td></tr>${historialRows}`;
     } else {
       // ── Formato viejo: cuota + cuotas restantes ──
       const c=parseInt(r.cuotas)||0;
@@ -2384,8 +2441,21 @@ function confirmarUsar(){
     if(monto>saldo){showToast('⚠ Monto supera el saldo disponible');return;}
     const pi=state.prestamos_in.find(r=>r.id===piId); if(!pi)return;
     if(pi.capital){
-      const nuevo=Math.max(0,parseFloat(pi.capital)-monto);
+      const capitalAntes=parseFloat(pi.capital)||0;
+      const tasa=parseFloat(pi.tasa_anual)||0;
+      const hoy=new Date().toISOString().slice(0,10);
+      let intDevengado=0;
+      if(tasa>0&&pi.fecha_inicio){
+        const inicio=new Date(pi.fecha_inicio+'T12:00:00');
+        const fin=new Date(hoy+'T12:00:00');
+        const dias=Math.max(0,Math.round((fin-inicio)/86400000));
+        intDevengado=Math.round(capitalAntes*(tasa/100*dias/365)*100)/100;
+      }
+      const nuevo=Math.max(0,Math.round((capitalAntes-monto)*100)/100);
+      if(!pi.pagos_parciales)pi.pagos_parciales=[];
+      pi.pagos_parciales.push({id:uid(),fecha:hoy,monto:String(monto),capital_antes:String(capitalAntes),capital_despues:String(nuevo),int_devengado:String(intDevengado),cuenta_desc:cuenta.desc});
       pi.capital=String(nuevo);
+      if(nuevo>0) pi.fecha_inicio=hoy;
       if(nuevo===0){
         if(!state.prestamos_cancelados)state.prestamos_cancelados=[];
         state.prestamos_cancelados.push({...pi,cancelado:ym});
@@ -2399,8 +2469,8 @@ function confirmarUsar(){
         state.prestamos_in=state.prestamos_in.filter(r=>r.id!==piId);
       }
     }
-    cuenta.amt=String(saldo-monto);
-    saveState();renderAll();showToast('✓ Préstamo actualizado y saldo descontado');closeUsarModal();
+    cuenta.amt=String(Math.round((saldo-monto)*100)/100);
+    saveState();renderAll();showToast('✓ Pago parcial registrado — capital e intereses recalculados');closeUsarModal();
 
   }else if(_usarTab==='inversion'){
     const invId=document.getElementById('usar-inv-select').value;
