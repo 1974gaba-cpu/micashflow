@@ -579,6 +579,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
       <button class="btn-no-cobrado" onclick="marcarNoCobrado()" style="width:100%">✗ No cobrado — marcar en duda</button>
       <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:5px">El préstamo entero se excluye del patrimonio proyectado. Las cuotas no bajan. Si cobrás después, lo cargás manual en Efectivo.</div>
     </div>
+    <!-- Monto real a acreditar (editable) -->
+    <div id="cobro-monto-real-row" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:8px;letter-spacing:.5px;text-transform:uppercase">Monto a acreditar</div>
+      <div style="display:flex;gap:10px;align-items:flex-end">
+        <div style="flex:2">
+          <label style="font-size:10px;font-family:var(--mono);color:var(--muted)">Monto recibido (<span id="cobro-monto-cur"></span>)</label>
+          <input id="cobro-monto-real" type="number" min="0" step="0.01" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);font-family:var(--mono);font-size:14px;outline:none;margin-top:4px">
+        </div>
+        <div id="cobro-tc-wrap" style="flex:1;display:none">
+          <label style="font-size:10px;font-family:var(--mono);color:var(--muted)">TC (ARS)</label>
+          <input id="cobro-tc-real" type="number" min="0" step="1" placeholder="Ej: 1410" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);font-family:var(--mono);font-size:14px;outline:none;margin-top:4px">
+        </div>
+      </div>
+      <div id="cobro-monto-hint" style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:5px">↳ Pre-cargado con el monto de la cuota. Editá si lo cobraste en otro monto o moneda.</div>
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeCobroModal()">Cancelar</button>
       <button class="btn-save" onclick="confirmarCobro()">✓ Confirmar cobro</button>
@@ -1400,6 +1415,11 @@ function abrirCobroIngreso(col,id){
       </div>`).join('')
     : `<div style="font-size:12px;font-family:var(--mono);color:var(--muted);padding:8px 0">No tenés cuentas en ${item.cur} — usá "Otra cuenta nueva"</div>`;
   document.getElementById('cobro-modal').classList.add('show');
+  // Pre-cargar monto real
+  document.getElementById('cobro-monto-real').value=item.amt;
+  document.getElementById('cobro-monto-cur').textContent=item.cur;
+  document.getElementById('cobro-tc-wrap').style.display='none';
+  document.getElementById('cobro-tc-real').value=state.fx||'';
 }
 
 function deshacerCobroIngreso(col,id){
@@ -1442,6 +1462,11 @@ function abrirCobro(col,id){
       </div>`).join('')
     : `<div style="font-size:12px;font-family:var(--mono);color:var(--muted);padding:8px 0">No tenés cuentas en ${item.cur} — usá "Otra cuenta nueva"</div>`;
   document.getElementById('cobro-modal').classList.add('show');
+  // Pre-cargar monto real
+  document.getElementById('cobro-monto-real').value=item.amt;
+  document.getElementById('cobro-monto-cur').textContent=item.cur;
+  document.getElementById('cobro-tc-wrap').style.display='none';
+  document.getElementById('cobro-tc-real').value=state.fx||'';
 }
 
 function selectCobroCuenta(efId){
@@ -1455,6 +1480,17 @@ function selectCobroCuenta(efId){
   // Ocultar form de otra cuenta si estaba abierto
   document.getElementById('cobro-otra-form').style.display='none';
   document.getElementById('btn-otra-cuenta').textContent='+ Otra cuenta nueva';
+  // Mostrar TC si la cuenta es de distinta moneda que la cuota
+  const cuenta=state.efectivo.find(c=>c.id===efId);
+  const curItem=document.getElementById('cobro-monto-cur').textContent;
+  const diferente=cuenta&&cuenta.cur!==curItem;
+  document.getElementById('cobro-tc-wrap').style.display=diferente?'block':'none';
+  if(diferente){
+    document.getElementById('cobro-monto-cur').textContent=curItem+' → '+cuenta.cur;
+    document.getElementById('cobro-monto-hint').textContent='↳ Ingresá el monto en '+curItem+' y el TC. Se acredita el equivalente en '+cuenta.cur+'.';
+  } else {
+    document.getElementById('cobro-monto-hint').textContent='↳ Pre-cargado con el monto de la cuota. Editá si lo cobraste en otro monto.';
+  }
 }
 
 function toggleOtraCuenta(){
@@ -1636,13 +1672,17 @@ function confirmarCobro(){
     showToast(`✓ Cobro dividido → ${desc1} + ${desc2}`);
 
   } else if(_cobroDestino==='cuenta_existente' && _cobroEfectivoId){
-    // Sumar al saldo de la cuenta existente
     const cuenta=state.efectivo.find(c=>c.id===_cobroEfectivoId);
     if(!cuenta){alert('No se encontró la cuenta.');return;}
-    const nuevoSaldo=(parseFloat(cuenta.amt)||0)+(parseFloat(item.amt)||0);
-    cuenta.amt=String(Math.round(nuevoSaldo*100)/100);
-    state.cobros[cobroKey(_cobroCol,_cobroId,ym)]={destino:'cuenta_existente',desc:cuenta.desc,monto:item.amt,cur:item.cur,fecha:new Date().toISOString().slice(0,10)};
-    showToast(`✓ ${item.cur} ${fmtN(item.amt)} sumado a ${cuenta.desc} → nuevo saldo: ${item.cur} ${fmtN(nuevoSaldo)}`);
+    const montoReal=parseFloat(document.getElementById('cobro-monto-real').value)||parseFloat(item.amt)||0;
+    const tcReal=parseFloat(document.getElementById('cobro-tc-real').value)||state.fx||1;
+    const curItem=item.cur;
+    const entra=cuenta.cur!==curItem ? Math.round(montoReal*tcReal*100)/100 : montoReal;
+    const nuevoSaldo=Math.round(((parseFloat(cuenta.amt)||0)+entra)*100)/100;
+    cuenta.amt=String(nuevoSaldo);
+    const descConv=cuenta.cur!==curItem?` (TC ${fmtN(tcReal)} → ${cuenta.cur} ${fmtN(entra)})`:'';
+    state.cobros[cobroKey(_cobroCol,_cobroId,ym)]={destino:'cuenta_existente',desc:cuenta.desc+descConv,monto:item.amt,montoReal:String(montoReal),cur:item.cur,fecha:new Date().toISOString().slice(0,10)};
+    showToast(`✓ ${cuenta.cur} ${fmtN(entra)} sumado a ${cuenta.desc} → saldo: ${cuenta.cur} ${fmtN(nuevoSaldo)}`);
 
   } else if(_cobroDestino==='cuenta_nueva'){
     // Crear nueva cuenta
@@ -2185,25 +2225,34 @@ function abrirUsar(id){
   const tarjLista=document.getElementById('usar-tarjeta-lista');
   const tarjAmtEl=document.getElementById('usar-tarjeta-amt');
   if(cuenta.cur==='ARS'){
-    // Calcular totales por emisor (DA activos + tarjetas 1 pago) igual que renderTotalTarjetas
-    const daActivos=(state.da_fijos||[]).filter(r=>{ if(r.cur!=='ARS')return false; const ini=r.inicio||'2000-01'; if(ym<ini)return false; const tot=parseInt(r.cuotas_total)||0; if(tot===0)return true; const [iy,im]=ini.split('-').map(Number); const [cy,cm]=ym.split('-').map(Number); const diff=(cy-iy)*12+(cm-im); return diff<tot; });
-    const totDA={};daActivos.forEach(r=>{const t=r.tarjeta||'Sin tarjeta';totDA[t]=(totDA[t]||0)+(parseFloat(r.amt)||0);});
-    const totTC={};(state.tarjetas[ym]||[]).filter(r=>r.cur==='ARS').forEach(r=>{const t=r.tarjeta||'Sin tarjeta';totTC[t]=(totTC[t]||0)+(parseFloat(r.amt)||0);});
-    const emisores=[...new Set([...Object.keys(totDA),...Object.keys(totTC)])].sort();
+    const tc=parseFloat(state.fx)||1;
+    const daActivos=(state.da_fijos||[]).filter(r=>{ const ini=r.inicio||'2000-01'; if(ym<ini)return false; const tot=parseInt(r.cuotas_total)||0; if(tot===0)return true; const [iy,im]=ini.split('-').map(Number); const [cy,cm]=ym.split('-').map(Number); const diff=(cy-iy)*12+(cm-im); return diff<tot; });
+    // Totales ARS por emisor
+    const totDA_ARS={};daActivos.filter(r=>r.cur==='ARS').forEach(r=>{const t=r.tarjeta||'Sin tarjeta';totDA_ARS[t]=(totDA_ARS[t]||0)+(parseFloat(r.amt)||0);});
+    const totTC_ARS={};(state.tarjetas[ym]||[]).filter(r=>r.cur==='ARS').forEach(r=>{const t=r.tarjeta||'Sin tarjeta';totTC_ARS[t]=(totTC_ARS[t]||0)+(parseFloat(r.amt)||0);});
+    // Totales USD por emisor
+    const totDA_USD={};daActivos.filter(r=>r.cur==='USD').forEach(r=>{const t=r.tarjeta||'Sin tarjeta';totDA_USD[t]=(totDA_USD[t]||0)+(parseFloat(r.amt)||0);});
+    const totTC_USD={};(state.tarjetas[ym]||[]).filter(r=>r.cur==='USD').forEach(r=>{const t=r.tarjeta||'Sin tarjeta';totTC_USD[t]=(totTC_USD[t]||0)+(parseFloat(r.amt)||0);});
+    const emisoresARS=[...new Set([...Object.keys(totDA_ARS),...Object.keys(totTC_ARS)])].sort();
+    const emisoresUSD=[...new Set([...Object.keys(totDA_USD),...Object.keys(totTC_USD)])].sort();
     const abonadas=(state.tarjetas_abonadas&&state.tarjetas_abonadas[ym])||{};
     if(!state.tarjetas_abonadas)state.tarjetas_abonadas={};
-    tarjLista.innerHTML=emisores.length?emisores.map(tar=>{
-      const sub=(totDA[tar]||0)+(totTC[tar]||0);
-      const abonada=!!abonadas[tar];
-      return`<div class="cobro-cuenta-opt" data-emisor="${tar}" data-total="${sub}" onclick="selectTarjetaEmisor('${tar}',${sub})" style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid ${abonada?'var(--green)':'var(--border)'};border-radius:8px;padding:10px 14px;cursor:pointer;transition:.15s;${abonada?'opacity:0.6':''}">
+    const mkCard=(tar,sub,esUSD)=>{
+      const key=esUSD?tar+' · USD':tar;
+      const subARS=esUSD?Math.round(sub*tc):sub;
+      const abonada=!!abonadas[key];
+      const sublabel=esUSD?`USD ${fmtN(sub)} × TC ${fmtN(tc)} ≈ ARS ${fmtN(subARS)}`:`Total del mes: ARS ${fmtN(subARS)}`;
+      return`<div class="cobro-cuenta-opt" data-emisor="${key}" data-total="${subARS}" onclick="selectTarjetaEmisor('${key}',${subARS})" style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid ${abonada?'var(--green)':'var(--border)'};border-radius:8px;padding:10px 14px;cursor:pointer;transition:.15s;${abonada?'opacity:0.6':''}">
         <span style="font-size:18px">💳</span>
         <div style="flex:1">
-          <div style="font-size:13px;font-weight:600">${tar}${abonada?' <span style="font-size:10px;font-family:var(--mono);color:var(--green)">✓ abonada</span>':''}</div>
-          <div style="font-size:10px;font-family:var(--mono);color:var(--muted)">Total del mes: ARS ${fmtN(sub)}</div>
+          <div style="font-size:13px;font-weight:600">${tar}${esUSD?' <span style="font-size:10px;font-family:var(--mono);color:var(--accent)">USD</span>':''}${abonada?' <span style="font-size:10px;font-family:var(--mono);color:var(--green)">✓ abonada</span>':''}</div>
+          <div style="font-size:10px;font-family:var(--mono);color:var(--muted)">${sublabel}</div>
         </div>
         <span style="font-size:18px;color:${abonada?'var(--green)':'var(--border2)'}">${abonada?'✓':'○'}</span>
       </div>`;
-    }).join(''):`<div style="font-size:12px;font-family:var(--mono);color:var(--muted);padding:8px 0">No hay tarjetas con saldo este mes.</div>`;
+    };
+    const rows=[...emisoresARS.map(t=>mkCard(t,(totDA_ARS[t]||0)+(totTC_ARS[t]||0),false)),...emisoresUSD.map(t=>mkCard(t,(totDA_USD[t]||0)+(totTC_USD[t]||0),true))];
+    tarjLista.innerHTML=rows.length?rows.join(''):`<div style="font-size:12px;font-family:var(--mono);color:var(--muted);padding:8px 0">No hay tarjetas con saldo este mes.</div>`;
     if(tarjAmtEl)tarjAmtEl.value='';
   } else {
     tarjLista.innerHTML=`<div style="font-size:12px;font-family:var(--mono);color:var(--muted);padding:8px 0">El pago de tarjetas se hace desde cuentas en ARS.</div>`;
