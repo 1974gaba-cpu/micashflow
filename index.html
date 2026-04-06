@@ -1365,6 +1365,48 @@ function decrementCuotas(col,id){ const item=state[col].find(r=>r.id===id); if(!
 // ─── COBRO FLOW ────────────────────────────────────────────────────────
 let _cobroCol=null,_cobroId=null,_cobroDestino=null,_cobroPartido=false,_cobroEfectivoId=null;
 
+function abrirCobroIngreso(col,id){
+  const ym=state.currentMonth;
+  const item=(state[col][ym]||[]).find(r=>r.id===id); if(!item)return;
+  _cobroCol=col;_cobroId=id;_cobroDestino=null;_cobroPartido=false;_cobroEfectivoId=null;
+  document.getElementById('cobro-lbl').textContent=`— ${item.desc} (${item.cur} ${fmtN(item.amt)})`;
+  document.getElementById('cobro-modo-simple').style.display='block';
+  document.getElementById('cobro-modo-partido').style.display='none';
+  document.getElementById('partido-amt-1').value='';
+  document.getElementById('partido-amt-2').value='';
+  document.getElementById('partido-error').style.display='none';
+  document.getElementById('cobro-otra-form').style.display='none';
+  document.getElementById('btn-otra-cuenta').textContent='+ Otra cuenta nueva';
+  document.getElementById('cobro-nueva-desc').value='';
+  const listEl=document.getElementById('cobro-cuentas-list');
+  const cuentas=state.efectivo.filter(c=>c.cur===item.cur);
+  const iconMap={'Efectivo':'💵','Billetera digital':'📱','Cuenta bancaria':'🏦','Otro':'💰'};
+  listEl.innerHTML=cuentas.length
+    ? cuentas.map(c=>`<div class="cobro-cuenta-opt" data-id="${c.id}" onclick="selectCobroCuenta('${c.id}')" style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;transition:.15s">
+        <span style="font-size:18px">${iconMap[c.tipo]||'💰'}</span>
+        <div style="flex:1"><div style="font-size:13px;font-weight:600">${c.desc}</div><div style="font-size:10px;font-family:var(--mono);color:var(--muted)">${c.tipo} · ${c.cur} ${fmtN(c.amt)} actuales</div></div>
+        <span style="font-size:18px;color:var(--border2)">○</span>
+      </div>`).join('')
+    : `<div style="font-size:12px;font-family:var(--mono);color:var(--muted);padding:8px 0">No tenés cuentas en ${item.cur} — usá "Otra cuenta nueva"</div>`;
+  document.getElementById('cobro-modal').classList.add('show');
+}
+
+function deshacerCobroIngreso(col,id){
+  const ym=state.currentMonth;
+  const key=cobroKey(col,id,ym);
+  const reg=state.cobros[key]; if(!reg)return;
+  // Revertir saldo si fue a cuenta existente
+  if(reg.destino==='cuenta_existente'){
+    const cuenta=state.efectivo.find(c=>c.desc===reg.desc&&c.cur===reg.cur);
+    if(cuenta){
+      const revertido=Math.round(((parseFloat(cuenta.amt)||0)-(parseFloat(reg.monto)||0))*100)/100;
+      cuenta.amt=String(revertido);
+    }
+  }
+  delete state.cobros[key];
+  saveState();renderAll();showToast('↩ Cobro de ingreso deshecho');
+}
+
 function abrirCobro(col,id){
   const item=state[col].find(r=>r.id===id); if(!item)return;
   _cobroCol=col;_cobroId=id;_cobroDestino=null;_cobroPartido=false;_cobroEfectivoId=null;
@@ -1521,8 +1563,13 @@ function calcPartidoResto(){
 function closeCobroModal(){ document.getElementById('cobro-modal').classList.remove('show'); _cobroCol=null;_cobroId=null;_cobroDestino=null;_cobroPartido=false;_cobroEfectivoId=null; }
 
 function confirmarCobro(){
-  const item=state[_cobroCol]?.find(r=>r.id===_cobroId); if(!item)return;
   const ym=state.currentMonth;
+  const _MONTHLY_COBRO=['ingresos_fijos','ingresos_espo'];
+  const _isMonthlyIngreso=_MONTHLY_COBRO.includes(_cobroCol);
+  const item=_isMonthlyIngreso
+    ? (state[_cobroCol][ym]||[]).find(r=>r.id===_cobroId)
+    : state[_cobroCol]?.find(r=>r.id===_cobroId);
+  if(!item)return;
   const tipoMap={'efectivo':'Efectivo','billetera':'Billetera digital','broker':'Cuenta bancaria'};
 
   if(_cobroPartido){
@@ -1600,11 +1647,13 @@ function confirmarCobro(){
     alert('Seleccioná una cuenta destino.');return;
   }
 
-  const c=parseInt(item.cuotas)||0;
-  if(c>1){ item.cuotas=String(c-1); }
-  else {
-    state.prestamos_cancelados.unshift({id:item.id,desc:item.desc,cur:item.cur,amt:item.amt,cuotas_originales:item._cuotas_originales||item.cuotas,inicio:item.inicio||ym,cancelado:ym,note:item.note||''});
-    state[_cobroCol]=state[_cobroCol].filter(r=>r.id!==_cobroId);
+  if(!_isMonthlyIngreso){
+    const c=parseInt(item.cuotas)||0;
+    if(c>1){ item.cuotas=String(c-1); }
+    else {
+      state.prestamos_cancelados.unshift({id:item.id,desc:item.desc,cur:item.cur,amt:item.amt,cuotas_originales:item._cuotas_originales||item.cuotas,inicio:item.inicio||ym,cancelado:ym,note:item.note||''});
+      state[_cobroCol]=state[_cobroCol].filter(r=>r.id!==_cobroId);
+    }
   }
   saveState();closeCobroModal();renderAll();
 }
@@ -2256,14 +2305,26 @@ function confirmarUsar(){
 function renderTable(tbodyId,rows,cols,col){
   const tb=document.getElementById(tbodyId); if(!tb)return;
   if(!rows||!rows.length){tb.innerHTML=`<tr><td colspan="${cols.length+2}" class="empty-state">Sin entradas todavía</td></tr>`;return;}
-  tb.innerHTML=rows.map((r,idx)=>`<tr>${cols.map(c=>{
-    if(c==='cur')return`<td>${curBadge(r[c])}</td>`;if(c==='liq')return`<td>${liqBadge(r[c])}</td>`;
-    if(c==='tipo')return`<td><span class="badge bac">${r[c]}</span></td>`;if(c==='medio')return`<td><span class="badge bb">${r[c]||'—'}</span></td>`;
-    if(c==='tarjeta')return`<td><span style="font-size:11px;font-family:var(--mono);color:var(--muted2)">${r[c]||'—'}</span></td>`;
-    if(c==='amt'||c==='val')return`<td class="mono-cell">${fmtN(r[c])}</td>`;
-    if(c==='note')return`<td class="note-cell" title="${(r[c]||'').replace(/"/g,'&quot;')}">${r[c]||'—'}</td>`;
-    return`<td>${r[c]||''}</td>`;
-  }).join('')}<td style="white-space:nowrap"><button class="btn-edit" onclick="moveItem('${col}','${r.id}',-1)" title="Subir" style="opacity:${idx===0?0.2:1}">↑</button><button class="btn-edit" onclick="moveItem('${col}','${r.id}',1)" title="Bajar" style="opacity:${idx===rows.length-1?0.2:1}">↓</button><button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button></td></tr>`).join('');
+  const isIngreso=['ingresos_fijos','ingresos_espo'].includes(col);
+  tb.innerHTML=rows.map((r,idx)=>{
+    const ym=state.currentMonth;
+    const cobrado=isIngreso?isCobrado(col,r.id,ym):false;
+    const regCobro=isIngreso?state.cobros[cobroKey(col,r.id,ym)]:null;
+    const cobroCell=isIngreso
+      ? (cobrado
+          ? `<span style="font-size:11px;font-family:var(--mono);color:var(--green)">✓ ${regCobro&&regCobro.desc?regCobro.desc:'cobrado'}</span><button onclick="deshacerCobroIngreso('${col}','${r.id}')" title="Deshacer cobro" style="margin-left:4px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--muted2);font-size:11px;padding:1px 7px;cursor:pointer;font-family:var(--mono)">↩</button>`
+          : `<button class="btn-cobrar" onclick="abrirCobroIngreso('${col}','${r.id}')">Cobré</button>`)
+      : '';
+    const rowStyle=cobrado?'opacity:0.65':'';
+    return`<tr style="${rowStyle}">${cols.map(c=>{
+      if(c==='cur')return`<td>${curBadge(r[c])}</td>`;if(c==='liq')return`<td>${liqBadge(r[c])}</td>`;
+      if(c==='tipo')return`<td><span class="badge bac">${r[c]}</span></td>`;if(c==='medio')return`<td><span class="badge bb">${r[c]||'—'}</span></td>`;
+      if(c==='tarjeta')return`<td><span style="font-size:11px;font-family:var(--mono);color:var(--muted2)">${r[c]||'—'}</span></td>`;
+      if(c==='amt'||c==='val')return`<td class="mono-cell">${fmtN(r[c])}</td>`;
+      if(c==='note')return`<td class="note-cell" title="${(r[c]||'').replace(/"/g,'&quot;')}">${r[c]||'—'}</td>`;
+      return`<td>${r[c]||''}</td>`;
+    }).join('')}<td style="white-space:nowrap">${cobroCell}${isIngreso?'':''}<button class="btn-edit" onclick="moveItem('${col}','${r.id}',-1)" title="Subir" style="opacity:${idx===0?0.2:1}">↑</button><button class="btn-edit" onclick="moveItem('${col}','${r.id}',1)" title="Bajar" style="opacity:${idx===rows.length-1?0.2:1}">↓</button><button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button></td></tr>`;
+  }).join('');
 }
 
 // ─── RENDER ALL ────────────────────────────────────────────────────────
