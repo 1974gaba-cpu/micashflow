@@ -594,6 +594,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
     <!-- Tabs -->
     <div class="hist-tabs" style="margin-bottom:14px">
       <div class="htab active" id="usar-tab-gasto" onclick="setUsarTab('gasto')">Gasto / Pago</div>
+      <div class="htab" id="usar-tab-tarjeta" onclick="setUsarTab('tarjeta')">Pagar tarjeta</div>
       <div class="htab" id="usar-tab-cancelar" onclick="setUsarTab('cancelar')">Cancelar préstamo</div>
       <div class="htab" id="usar-tab-inversion" onclick="setUsarTab('inversion')">Inversión</div>
       <div class="htab" id="usar-tab-prestamo" onclick="setUsarTab('prestamo')">Préstamo a dar</div>
@@ -625,6 +626,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
         </div>
         <div class="form-hint" style="margin-top:8px">↳ Se registra en Gastos Directos y se descuenta del saldo.</div>
       </div>
+    </div>
+
+    <!-- Panel Pagar tarjeta -->
+    <div id="usar-panel-tarjeta" style="display:none">
+      <div id="usar-tarjeta-lista" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
+      <div class="form-row" style="gap:10px">
+        <div class="fg" style="flex:2"><label>Monto a pagar (ARS)</label><input id="usar-tarjeta-amt" type="number" placeholder="0" min="0" step="0.01"></div>
+      </div>
+      <div class="form-hint" style="margin-top:8px">↳ Descuenta del saldo y marca la tarjeta como <strong style="color:var(--green)">✓ Abonada</strong> en el resumen.</div>
     </div>
 
     <!-- Panel Cancelar préstamo propio -->
@@ -1012,6 +1022,7 @@ let state={
   inversiones:[],efectivo:[],
   gastos_directos:{},
   gf_pagos:{},
+  tarjetas_abonadas:{},
   gf_overrides:{},
   prestamos_out:[],prestamos_in:[],
   prestamos_cancelados:[],
@@ -1022,7 +1033,7 @@ let state={
   retiro_jubilacion:{saldo:2882166.65, fecha_snapshot:'2026-03-01', edad_cobro:65, prima_mensual_ars:76008, dia_debito:13},
   fx:1420,currentMonth:new Date().toISOString().slice(0,7)
 };
-const STATE_KEYS=['ingresos_fijos','ingresos_espo','gastos_fijos','da_fijos','tarjetas','gastos_directos','gf_pagos','gf_overrides','inversiones','efectivo','prestamos_out','prestamos_in','prestamos_cancelados','cobros','cierres','notas','seguros_capitalizacion','retiro_jubilacion','fx','currentMonth'];
+const STATE_KEYS=['ingresos_fijos','ingresos_espo','gastos_fijos','da_fijos','tarjetas','gastos_directos','gf_pagos','gf_overrides','inversiones','efectivo','prestamos_out','prestamos_in','prestamos_cancelados','cobros','cierres','notas','seguros_capitalizacion','retiro_jubilacion','fx','currentMonth','tarjetas_abonadas'];
 function saveState(){ state._savedAt=new Date().toISOString(); STATE_KEYS.forEach(k=>lsSet(k,state[k])); lsSet('_savedAt',state._savedAt); driveSaveDebounced(); }
 
 // ─── DA HELPERS ────────────────────────────────────────────────────────
@@ -1766,12 +1777,18 @@ function renderTotalTarjetas(ym, daActivos){
     card.innerHTML=''; return;
   }
 
-  const emisoresHtml = filas.map(f=>`
-    <div style="display:flex;flex-direction:column;gap:2px;background:var(--surface2);border-radius:8px;padding:8px 12px;min-width:140px">
+  const abonadas=(state.tarjetas_abonadas&&state.tarjetas_abonadas[ym])||{};
+
+  const emisoresHtml = filas.map(f=>{
+    const abonada=!!abonadas[f.tar];
+    return`
+    <div style="display:flex;flex-direction:column;gap:2px;background:var(--surface2);border:1px solid ${abonada?'var(--green)':'transparent'};border-radius:8px;padding:8px 12px;min-width:140px">
       <div style="font-size:10px;font-family:var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${f.tar}</div>
-      <div style="font-size:14px;font-weight:500;font-family:var(--mono);color:var(--text)">$${fmtN(f.sub)}</div>
+      <div style="font-size:14px;font-weight:500;font-family:var(--mono);color:${abonada?'var(--muted2)':'var(--text)'}${abonada?';text-decoration:line-through':''}">${fmtN(f.sub)}</div>
       ${f.da>0&&f.tc>0?`<div style="font-size:10px;font-family:var(--mono);color:var(--muted)">DA: $${fmtN(f.da)} · 1p: $${fmtN(f.tc)}</div>`:''}
-    </div>`).join('');
+      ${abonada?`<div style="font-size:10px;font-family:var(--mono);color:var(--green);margin-top:2px">✓ abonada</div>`:''}
+    </div>`;
+  }).join('');
 
   const usdHtml = Object.entries(totDA_USD).map(([tar,v])=>`
     <div style="display:flex;flex-direction:column;gap:2px;background:var(--surface2);border-radius:8px;padding:8px 12px;min-width:140px">
@@ -2120,7 +2137,7 @@ function renderEfectivoTable(){
 }
 
 // ─── USAR MODAL ────────────────────────────────────────────────────────
-let _usarCuentaId=null, _usarTab='gasto', _usarGastoModo='fijo';
+let _usarCuentaId=null, _usarTab='gasto', _usarGastoModo='fijo', _usarTarjetaEmisor=null;
 
 function abrirUsar(id){
   if(isCerrado(state.currentMonth)){showToast('⚠ No se puede operar en un mes cerrado');return;}
@@ -2161,6 +2178,35 @@ function abrirUsar(id){
   const amt2El=document.getElementById('usar-gasto-amt2'); if(amt2El)amt2El.value='';
   document.getElementById('usar-po-cuotas').value='1';
   document.getElementById('usar-inv-nueva-form').style.display='none';
+  // Tarjetas panel — solo si la cuenta es ARS
+  _usarTarjetaEmisor=null;
+  const tarjLista=document.getElementById('usar-tarjeta-lista');
+  const tarjAmtEl=document.getElementById('usar-tarjeta-amt');
+  if(cuenta.cur==='ARS'){
+    // Calcular totales por emisor (DA activos + tarjetas 1 pago) igual que renderTotalTarjetas
+    const daActivos=(state.da_fijos||[]).filter(r=>{ if(r.cur!=='ARS')return false; const ini=r.inicio||'2000-01'; if(ym<ini)return false; const tot=parseInt(r.cuotas_total)||0; if(tot===0)return true; const [iy,im]=ini.split('-').map(Number); const [cy,cm]=ym.split('-').map(Number); const diff=(cy-iy)*12+(cm-im); return diff<tot; });
+    const totDA={};daActivos.forEach(r=>{const t=r.tarjeta||'Sin tarjeta';totDA[t]=(totDA[t]||0)+(parseFloat(r.amt)||0);});
+    const totTC={};(state.tarjetas[ym]||[]).filter(r=>r.cur==='ARS').forEach(r=>{const t=r.tarjeta||'Sin tarjeta';totTC[t]=(totTC[t]||0)+(parseFloat(r.amt)||0);});
+    const emisores=[...new Set([...Object.keys(totDA),...Object.keys(totTC)])].sort();
+    const abonadas=(state.tarjetas_abonadas&&state.tarjetas_abonadas[ym])||{};
+    if(!state.tarjetas_abonadas)state.tarjetas_abonadas={};
+    tarjLista.innerHTML=emisores.length?emisores.map(tar=>{
+      const sub=(totDA[tar]||0)+(totTC[tar]||0);
+      const abonada=!!abonadas[tar];
+      return`<div class="cobro-cuenta-opt" data-emisor="${tar}" data-total="${sub}" onclick="selectTarjetaEmisor('${tar}',${sub})" style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid ${abonada?'var(--green)':'var(--border)'};border-radius:8px;padding:10px 14px;cursor:pointer;transition:.15s;${abonada?'opacity:0.6':''}">
+        <span style="font-size:18px">💳</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600">${tar}${abonada?' <span style="font-size:10px;font-family:var(--mono);color:var(--green)">✓ abonada</span>':''}</div>
+          <div style="font-size:10px;font-family:var(--mono);color:var(--muted)">Total del mes: ARS ${fmtN(sub)}</div>
+        </div>
+        <span style="font-size:18px;color:${abonada?'var(--green)':'var(--border2)'}">${abonada?'✓':'○'}</span>
+      </div>`;
+    }).join(''):`<div style="font-size:12px;font-family:var(--mono);color:var(--muted);padding:8px 0">No hay tarjetas con saldo este mes.</div>`;
+    if(tarjAmtEl)tarjAmtEl.value='';
+  } else {
+    tarjLista.innerHTML=`<div style="font-size:12px;font-family:var(--mono);color:var(--muted);padding:8px 0">El pago de tarjetas se hace desde cuentas en ARS.</div>`;
+    if(tarjAmtEl)tarjAmtEl.value='';
+  }
   setGastoModo('fijo');
   setUsarTab('gasto');
   document.getElementById('usar-modal').style.display='flex';
@@ -2189,10 +2235,22 @@ function setGastoModo(modo){
 
 function setUsarTab(tab){
   _usarTab=tab;
-  ['gasto','cancelar','inversion','prestamo'].forEach(t=>{
+  ['gasto','tarjeta','cancelar','inversion','prestamo'].forEach(t=>{
     document.getElementById('usar-tab-'+t).classList.toggle('active',t===tab);
     document.getElementById('usar-panel-'+t).style.display=t===tab?'block':'none';
   });
+}
+
+function selectTarjetaEmisor(emisor, total){
+  _usarTarjetaEmisor=emisor;
+  document.querySelectorAll('#usar-tarjeta-lista .cobro-cuenta-opt').forEach(el=>{
+    const sel=el.dataset.emisor===emisor;
+    el.style.borderColor=sel?'var(--green)':'var(--border)';
+    el.style.background=sel?'var(--green-dim)':'var(--surface2)';
+    el.querySelector('span:last-child').textContent=sel?'✓':'○';
+  });
+  const amtEl=document.getElementById('usar-tarjeta-amt');
+  if(amtEl) amtEl.value=total;
 }
 
 function toggleNuevaInv(){
@@ -2240,6 +2298,17 @@ function confirmarUsar(){
       cuenta.amt=String(saldo-monto);
       saveState();renderAll();showToast('✓ Gasto registrado y saldo actualizado');closeUsarModal();
     }
+  }else if(_usarTab==='tarjeta'){
+    if(!_usarTarjetaEmisor){showToast('⚠ Seleccioná una tarjeta');return;}
+    const monto=parseFloat(document.getElementById('usar-tarjeta-amt').value);
+    if(!monto||monto<=0){showToast('⚠ Ingresá un monto válido');return;}
+    if(monto>saldo){showToast('⚠ Monto supera el saldo disponible');return;}
+    if(!state.tarjetas_abonadas)state.tarjetas_abonadas={};
+    if(!state.tarjetas_abonadas[ym])state.tarjetas_abonadas[ym]={};
+    state.tarjetas_abonadas[ym][_usarTarjetaEmisor]={monto,cuentaDesc:cuenta.desc,fecha:new Date().toISOString().slice(0,10)};
+    cuenta.amt=String(Math.round((saldo-monto)*100)/100);
+    saveState();renderAll();showToast(`✓ ${_usarTarjetaEmisor} abonada — ARS ${fmtN(monto)} descontado de ${cuenta.desc}`);closeUsarModal();
+
   }else if(_usarTab==='cancelar'){
     const piId=document.getElementById('usar-pi-select').value;
     const monto=parseFloat(document.getElementById('usar-cancel-amt').value);
