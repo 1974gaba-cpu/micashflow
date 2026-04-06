@@ -1405,15 +1405,23 @@ function abrirCobroIngreso(col,id){
   document.getElementById('btn-otra-cuenta').textContent='+ Otra cuenta nueva';
   document.getElementById('cobro-nueva-desc').value='';
   const listEl=document.getElementById('cobro-cuentas-list');
-  const cuentas=state.efectivo.filter(c=>c.cur===item.cur);
   const iconMap={'Efectivo':'💵','Billetera digital':'📱','Cuenta bancaria':'🏦','Otro':'💰'};
-  listEl.innerHTML=cuentas.length
-    ? cuentas.map(c=>`<div class="cobro-cuenta-opt" data-id="${c.id}" onclick="selectCobroCuenta('${c.id}')" style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;transition:.15s">
-        <span style="font-size:18px">${iconMap[c.tipo]||'💰'}</span>
-        <div style="flex:1"><div style="font-size:13px;font-weight:600">${c.desc}</div><div style="font-size:10px;font-family:var(--mono);color:var(--muted)">${c.tipo} · ${c.cur} ${fmtN(c.amt)} actuales</div></div>
-        <span style="font-size:18px;color:var(--border2)">○</span>
-      </div>`).join('')
-    : `<div style="font-size:12px;font-family:var(--mono);color:var(--muted);padding:8px 0">No tenés cuentas en ${item.cur} — usá "Otra cuenta nueva"</div>`;
+  const mkCuentaRow=c=>{
+    const diff=c.cur!==item.cur;
+    const tcEst=parseFloat(state.fx)||1;
+    const equiv=diff?(c.cur==='ARS'?` ≈ ARS ${fmtN(Math.round(parseFloat(item.amt)*tcEst))}`:` ≈ USD ${fmtN(Math.round(parseFloat(item.amt)/tcEst*100)/100)}`): '';
+    const badge=diff?`<span style="font-size:9px;font-family:var(--mono);background:var(--amber-dim,#2a2000);color:var(--amber,#f5a623);border-radius:4px;padding:1px 5px;margin-left:4px">TC${equiv}</span>`:'';
+    return`<div class="cobro-cuenta-opt" data-id="${c.id}" onclick="selectCobroCuenta('${c.id}')" style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;transition:.15s">
+      <span style="font-size:18px">${iconMap[c.tipo]||'💰'}</span>
+      <div style="flex:1"><div style="font-size:13px;font-weight:600">${c.desc}${badge}</div><div style="font-size:10px;font-family:var(--mono);color:var(--muted)">${c.tipo} · ${c.cur} ${fmtN(c.amt)} actuales</div></div>
+      <span style="font-size:18px;color:var(--border2)">○</span>
+    </div>`;
+  };
+  const cuentasMisma=state.efectivo.filter(c=>c.cur===item.cur);
+  const cuentasOtra=state.efectivo.filter(c=>c.cur!==item.cur);
+  listEl.innerHTML=(cuentasMisma.length||cuentasOtra.length)
+    ? [...cuentasMisma.map(mkCuentaRow),(cuentasOtra.length&&cuentasMisma.length?`<div style="font-size:10px;font-family:var(--mono);color:var(--muted);padding:4px 2px;margin-top:4px">— Con conversión TC —</div>`:''),...cuentasOtra.map(mkCuentaRow)].join('')
+    : `<div style="font-size:12px;font-family:var(--mono);color:var(--muted);padding:8px 0">No tenés cuentas — usá "Otra cuenta nueva"</div>`;
   document.getElementById('cobro-modal').classList.add('show');
   // Pre-cargar monto real
   document.getElementById('cobro-monto-real').value=item.amt;
@@ -1452,15 +1460,23 @@ function abrirCobro(col,id){
   document.getElementById('cobro-nueva-desc').value='';
   // Renderizar cuentas reales filtradas por moneda
   const listEl=document.getElementById('cobro-cuentas-list');
-  const cuentas=state.efectivo.filter(c=>c.cur===item.cur);
   const iconMap={'Efectivo':'💵','Billetera digital':'📱','Cuenta bancaria':'🏦','Otro':'💰'};
-  listEl.innerHTML=cuentas.length
-    ? cuentas.map(c=>`<div class="cobro-cuenta-opt" data-id="${c.id}" onclick="selectCobroCuenta('${c.id}')" style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;transition:.15s">
-        <span style="font-size:18px">${iconMap[c.tipo]||'💰'}</span>
-        <div style="flex:1"><div style="font-size:13px;font-weight:600">${c.desc}</div><div style="font-size:10px;font-family:var(--mono);color:var(--muted)">${c.tipo} · ${c.cur} ${fmtN(c.amt)} actuales</div></div>
-        <span style="font-size:18px;color:var(--border2)">○</span>
-      </div>`).join('')
-    : `<div style="font-size:12px;font-family:var(--mono);color:var(--muted);padding:8px 0">No tenés cuentas en ${item.cur} — usá "Otra cuenta nueva"</div>`;
+  const mkCuentaRow=c=>{
+    const diff=c.cur!==item.cur;
+    const tcEst=parseFloat(state.fx)||1;
+    const equiv=diff?(c.cur==='ARS'?` ≈ ARS ${fmtN(Math.round(parseFloat(item.amt)*tcEst))}`:` ≈ USD ${fmtN(Math.round(parseFloat(item.amt)/tcEst*100)/100)}`): '';
+    const badge=diff?`<span style="font-size:9px;font-family:var(--mono);background:var(--amber-dim,#2a2000);color:var(--amber,#f5a623);border-radius:4px;padding:1px 5px;margin-left:4px">TC${equiv}</span>`:'';
+    return`<div class="cobro-cuenta-opt" data-id="${c.id}" onclick="selectCobroCuenta('${c.id}')" style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;transition:.15s">
+      <span style="font-size:18px">${iconMap[c.tipo]||'💰'}</span>
+      <div style="flex:1"><div style="font-size:13px;font-weight:600">${c.desc}${badge}</div><div style="font-size:10px;font-family:var(--mono);color:var(--muted)">${c.tipo} · ${c.cur} ${fmtN(c.amt)} actuales</div></div>
+      <span style="font-size:18px;color:var(--border2)">○</span>
+    </div>`;
+  };
+  const cuentasMisma=state.efectivo.filter(c=>c.cur===item.cur);
+  const cuentasOtra=state.efectivo.filter(c=>c.cur!==item.cur);
+  listEl.innerHTML=(cuentasMisma.length||cuentasOtra.length)
+    ? [...cuentasMisma.map(mkCuentaRow),(cuentasOtra.length&&cuentasMisma.length?`<div style="font-size:10px;font-family:var(--mono);color:var(--muted);padding:4px 2px;margin-top:4px">— Con conversión TC —</div>`:''),...cuentasOtra.map(mkCuentaRow)].join('')
+    : `<div style="font-size:12px;font-family:var(--mono);color:var(--muted);padding:8px 0">No tenés cuentas — usá "Otra cuenta nueva"</div>`;
   document.getElementById('cobro-modal').classList.add('show');
   // Pre-cargar monto real
   document.getElementById('cobro-monto-real').value=item.amt;
