@@ -1840,12 +1840,22 @@ function renderTotalTarjetas(ym, daActivos){
     const tar = r.tarjeta || 'Sin tarjeta';
     totDA[tar] = (totDA[tar]||0) + (parseFloat(r.amt)||0);
   });
+  // Totales USD DA por emisor
   const totDA_USD = {};
   daActivos.forEach(r=>{
     if(r.cur !== 'USD') return;
     const tar = r.tarjeta || 'Sin tarjeta';
     totDA_USD[tar] = (totDA_USD[tar]||0) + (parseFloat(r.amt)||0);
   });
+  // Totales USD tarjetas 1 pago por emisor
+  const totTC_USD = {};
+  (state.tarjetas[ym]||[]).forEach(r=>{
+    if(r.cur !== 'USD') return;
+    const tar = r.tarjeta || 'Sin tarjeta';
+    totTC_USD[tar] = (totTC_USD[tar]||0) + (parseFloat(r.amt)||0);
+  });
+  // Combinar USD por emisor
+  const emisoresUSD = [...new Set([...Object.keys(totDA_USD),...Object.keys(totTC_USD)])].sort();
 
   // Totales tarjetas 1 pago por emisor
   const totTC = {};
@@ -1883,7 +1893,8 @@ function renderTotalTarjetas(ym, daActivos){
     </div>`;
   }).join('');
 
-  const usdHtml = Object.entries(totDA_USD).map(([tar,v])=>{
+  const usdHtml = emisoresUSD.map(tar=>{
+    const v=(totDA_USD[tar]||0)+(totTC_USD[tar]||0);
     const key=tar+' · USD';
     const abonada=!!abonadas[key];
     return`
