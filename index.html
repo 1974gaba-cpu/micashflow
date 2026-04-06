@@ -199,6 +199,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
     <button class="io-btn imp" id="drive-btn" onclick="driveAuth()" title="Conectar Google Drive">☁ Drive</button>
     <button class="io-btn" onclick="clearLocalCache()" title="Limpiar caché local y traer datos del Drive" style="color:var(--red)">🗑 Caché</button>
     <button class="io-btn" id="drive-refresh-btn" onclick="driveRefresh()" title="Traer datos actualizados del Drive" style="display:none;color:var(--accent)">&#x1F504; Drive</button>
+    <button class="io-btn" onclick="deshacerUltimaOperacion()" id="btn-undo" title="Deshacer última operación de Usar" style="display:none;color:var(--amber)">↩ Deshacer</button>
     <span id="drive-status" style="font-size:10px;font-family:var(--mono);color:var(--muted);display:none"></span>
     <input type="file" id="imp-file" accept=".json" onchange="importData(event)" style="display:none">
     <div class="month-nav">
@@ -1991,8 +1992,8 @@ function renderPrestamosIn(){
       // Capital
       const capitalFmt=`<span style="font-family:var(--mono)">${r.cur==='USD'?'USD':'ARS'} ${fmtN(capital)}</span>`;
 
-      const historialRows=(pi.pagos_parciales&&pi.pagos_parciales.length)
-        ? pi.pagos_parciales.map(p=>{
+      const historialRows=(r.pagos_parciales&&r.pagos_parciales.length)
+        ? r.pagos_parciales.map(p=>{
             const intFmt=parseFloat(p.int_devengado)>0
               ? `<span style="color:var(--amber);font-family:var(--mono);font-size:11px"> · int. dev: ${r.cur==='USD'?'USD':'ARS'} ${fmtN(p.int_devengado)}</span>`
               : '';
@@ -2385,12 +2386,39 @@ function toggleNuevaInv(){
 function closeUsarModal(){
   document.getElementById('usar-modal').style.display='none';
   _usarCuentaId=null;
+  // Mostrar botón deshacer si hubo una operación
+  const btn=document.getElementById('btn-undo');
+  if(btn) btn.style.display=_usarSnapshot?'inline-block':'none';
+}
+
+let _usarSnapshot=null; // snapshot para deshacer última operación
+
+function deshacerUltimaOperacion(){
+  if(!_usarSnapshot){showToast('⚠ No hay operación para deshacer');return;}
+  if(!confirm('¿Deshacer la última operación? Se restaura el estado anterior.'))return;
+  ['efectivo','prestamos_in','prestamos_cancelados','inversiones','gastos_directos','gf_pagos','tarjetas_abonadas'].forEach(k=>{
+    if(_usarSnapshot[k]!==undefined) state[k]=JSON.parse(JSON.stringify(_usarSnapshot[k]));
+  });
+  _usarSnapshot=null;
+  saveState();renderAll();showToast('↩ Operación deshecha');
+  const btn=document.getElementById('btn-undo');
+  if(btn) btn.style.display='none';
 }
 
 function confirmarUsar(){
   const cuenta=state.efectivo.find(c=>c.id===_usarCuentaId); if(!cuenta)return;
   const ym=state.currentMonth;
   const saldo=parseFloat(cuenta.amt)||0;
+  // Guardar snapshot para poder deshacer
+  _usarSnapshot={
+    efectivo:JSON.parse(JSON.stringify(state.efectivo)),
+    prestamos_in:JSON.parse(JSON.stringify(state.prestamos_in||[])),
+    prestamos_cancelados:JSON.parse(JSON.stringify(state.prestamos_cancelados||[])),
+    inversiones:JSON.parse(JSON.stringify(state.inversiones||[])),
+    gastos_directos:JSON.parse(JSON.stringify(state.gastos_directos||{})),
+    gf_pagos:JSON.parse(JSON.stringify(state.gf_pagos||{})),
+    tarjetas_abonadas:JSON.parse(JSON.stringify(state.tarjetas_abonadas||{}))
+  };
 
   if(_usarTab==='gasto'){
     if(_usarGastoModo==='fijo'){
