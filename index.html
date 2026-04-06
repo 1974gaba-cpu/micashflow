@@ -1883,11 +1883,16 @@ function renderTotalTarjetas(ym, daActivos){
     </div>`;
   }).join('');
 
-  const usdHtml = Object.entries(totDA_USD).map(([tar,v])=>`
-    <div style="display:flex;flex-direction:column;gap:2px;background:var(--surface2);border-radius:8px;padding:8px 12px;min-width:140px">
+  const usdHtml = Object.entries(totDA_USD).map(([tar,v])=>{
+    const key=tar+' · USD';
+    const abonada=!!abonadas[key];
+    return`
+    <div style="display:flex;flex-direction:column;gap:2px;background:var(--surface2);border:1px solid ${abonada?'var(--green)':'transparent'};border-radius:8px;padding:8px 12px;min-width:140px">
       <div style="font-size:10px;font-family:var(--mono);color:var(--muted)">${tar} · USD</div>
-      <div style="font-size:14px;font-weight:500;font-family:var(--mono);color:var(--green)">USD ${fmtN(v)}</div>
-    </div>`).join('');
+      <div style="font-size:14px;font-weight:500;font-family:var(--mono);color:${abonada?'var(--muted2)':'var(--green)'}${abonada?';text-decoration:line-through':''}">USD ${fmtN(v)}</div>
+      ${abonada?`<div style="font-size:10px;font-family:var(--mono);color:var(--green);margin-top:2px">✓ abonada</div>`:''}
+    </div>`;
+  }).join('');
 
   card.innerHTML=`
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:14px 18px">
