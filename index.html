@@ -2080,7 +2080,9 @@ function gfGetAdelanto(ym,id){ gfMigrate(); const p=state.gf_pagos[ym]; return p
 function gfSetPago(ym,id,monto,gfAmt){
   gfMigrate();
   if(!state.gf_pagos[ym]) state.gf_pagos[ym]={};
-  state.gf_pagos[ym][id]=(Math.abs(monto-(parseFloat(gfAmt)||0))<0.01)?true:monto;
+  const yaAbonado = gfGetAdelanto(ym,id) || 0;
+  const totalAcumulado = yaAbonado + monto;
+  state.gf_pagos[ym][id]=(Math.abs(totalAcumulado-(parseFloat(gfAmt)||0))<0.01)?true:totalAcumulado;
 }
 
 function renderGastosFijosTable(rows){
