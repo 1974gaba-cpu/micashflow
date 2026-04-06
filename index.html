@@ -1881,9 +1881,14 @@ function renderTotalTarjetas(ym, daActivos){
   }
 
   const abonadas=(state.tarjetas_abonadas&&state.tarjetas_abonadas[ym])||{};
+  const isAbonada=(key)=>{
+    if(abonadas[key]) return true;
+    const kl=key.toLowerCase().trim();
+    return Object.keys(abonadas).some(k=>k.toLowerCase().trim()===kl);
+  };
 
   const emisoresHtml = filas.map(f=>{
-    const abonada=!!abonadas[f.tar];
+    const abonada=isAbonada(f.tar);
     return`
     <div style="display:flex;flex-direction:column;gap:2px;background:var(--surface2);border:1px solid ${abonada?'var(--green)':'transparent'};border-radius:8px;padding:8px 12px;min-width:140px">
       <div style="font-size:10px;font-family:var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${f.tar}</div>
@@ -1896,7 +1901,7 @@ function renderTotalTarjetas(ym, daActivos){
   const usdHtml = emisoresUSD.map(tar=>{
     const v=(totDA_USD[tar]||0)+(totTC_USD[tar]||0);
     const key=tar+' · USD';
-    const abonada=!!abonadas[key];
+    const abonada=isAbonada(key);
     return`
     <div style="display:flex;flex-direction:column;gap:2px;background:var(--surface2);border:1px solid ${abonada?'var(--green)':'transparent'};border-radius:8px;padding:8px 12px;min-width:140px">
       <div style="font-size:10px;font-family:var(--mono);color:var(--muted)">${tar} · USD</div>
