@@ -1965,6 +1965,13 @@ function renderCancelados(){
 }
 function delCancelado(id){ state.prestamos_cancelados=state.prestamos_cancelados.filter(r=>r.id!==id); saveState();renderCancelados(); }
 
+
+function eliminarCompraInv(invId, compraId){
+  const inv=state.inversiones.find(r=>r.id===invId); if(!inv||!inv.compras)return;
+  if(!confirm("\u00bfEliminar este registro de compra? Solo borra el historial, no revierte el capital ni el val_inicial."))return;
+  inv.compras=inv.compras.filter(c=>c.id!==compraId);
+  saveState();renderAll();showToast("Registro de compra eliminado");
+}
 // ─── RENDER PRESTAMOS IN ───────────────────────────────────────────────
 function eliminarPagoParcial(piId, pagoId){
   const pi=state.prestamos_in.find(r=>r.id===piId); if(!pi||!pi.pagos_parciales)return;
@@ -2078,7 +2085,10 @@ function renderInversiones(){
         perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--amber);margin-top:2px"><span style="background:var(--amber-dim);padding:1px 5px;border-radius:3px">PPP · ${nCompras} compras</span></div>`;
       }
       const fechaIni=r.fecha_inicio?`<div style="font-size:9px;font-family:var(--mono);color:var(--muted);margin-top:1px">desde ${new Date(r.fecha_inicio+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}</div>`:'';
-      return`<tr><td>${r.desc}</td><td><span class="badge bac">${r.tipo||'—'}</span></td><td>${curBadge(r.cur)}</td><td class="mono-cell"><div>${fmtN(r.val)}</div>${perfHtml}${fechaIni}</td><td>${liqBadge(r.liq)}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button class="btn-edit" onclick="moveInv('${r.id}',-1)" title="Subir" style="opacity:${globalIdx===0?0.2:1}">↑</button><button class="btn-edit" onclick="moveInv('${r.id}',1)" title="Bajar" style="opacity:${globalIdx===state.inversiones.length-1?0.2:1}">↓</button><button class="btn-edit" onclick="openEditModal('inversiones','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('inversiones','${r.id}')">×</button></td></tr>`;
+      const comprasRows=(r.compras&&r.compras.length)
+        ? r.compras.map(c=>`<tr style="background:var(--surface2);opacity:0.8"><td colspan="3" style="padding-left:24px;font-size:10px;font-family:var(--mono);color:var(--muted)">└ ${c.fecha||'—'} · desde <span style="color:var(--muted2)">${c.desde||'—'}</span></td><td colspan="3" style="font-size:10px;font-family:var(--mono);color:var(--blue)">${r.cur} ${fmtN(c.monto)} invertido</td><td style="text-align:right"><button onclick="eliminarCompraInv('${r.id}','${c.id}')" title="Eliminar registro" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 6px">×</button></td></tr>`).join('')
+        : '';
+      return`<tr><td>${r.desc}</td><td><span class="badge bac">${r.tipo||'—'}</span></td><td>${curBadge(r.cur)}</td><td class="mono-cell"><div>${fmtN(r.val)}</div>${perfHtml}${fechaIni}</td><td>${liqBadge(r.liq)}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button class="btn-edit" onclick="moveInv('${r.id}',-1)" title="Subir" style="opacity:${globalIdx===0?0.2:1}">↑</button><button class="btn-edit" onclick="moveInv('${r.id}',1)" title="Bajar" style="opacity:${globalIdx===state.inversiones.length-1?0.2:1}">↓</button><button class="btn-edit" onclick="openEditModal('inversiones','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('inversiones','${r.id}')">×</button></td></tr>${comprasRows}`;
     }).join('');
     // Detectar si hay duplicados (mismo ticker+moneda) en este broker
     const tickerKeys=items.map(r=>r.desc.toLowerCase()+'|'+r.cur);
@@ -2526,16 +2536,23 @@ function confirmarUsar(){
     const monto=parseFloat(document.getElementById('usar-inv-amt').value);
     if(!monto||monto<=0){showToast('⚠ Ingresá un monto válido');return;}
     if(monto>saldo){showToast('⚠ Monto supera el saldo disponible');return;}
+    const hoyInv=new Date().toISOString().slice(0,10);
     if(invId==='_nueva'){
       const desc=document.getElementById('usar-inv-nueva-desc').value.trim();
       const broker=document.getElementById('usar-inv-nueva-broker').value.trim();
       const tipo=document.getElementById('usar-inv-nueva-tipo').value;
       const liq=document.getElementById('usar-inv-nueva-liq').value;
       if(!desc){showToast('⚠ Ingresá el nombre de la posición');return;}
-      state.inversiones.push({id:uid(),desc,broker:broker||'—',tipo,cur:cuenta.cur,val:String(monto),liq,note:''});
+      state.inversiones.push({id:uid(),desc,broker:broker||'—',tipo,cur:cuenta.cur,val:String(monto),val_inicial:String(monto),num_compras:1,fecha_inicio:hoyInv,liq,note:'',compras:[{id:uid(),fecha:hoyInv,monto:String(monto),desde:cuenta.desc}]});
     }else{
       const inv=state.inversiones.find(r=>r.id===invId); if(!inv)return;
-      inv.val=String((parseFloat(inv.val)||0)+monto);
+      const valAntes=parseFloat(inv.val)||0;
+      const iniAntes=parseFloat(inv.val_inicial)||0;
+      inv.val=String(valAntes+monto);
+      inv.val_inicial=String(iniAntes+monto);
+      inv.num_compras=(parseInt(inv.num_compras)||1)+1;
+      if(!inv.compras) inv.compras=[];
+      inv.compras.push({id:uid(),fecha:hoyInv,monto:String(monto),desde:cuenta.desc});
     }
     cuenta.amt=String(saldo-monto);
     saveState();renderAll();showToast('✓ Inversión actualizada y saldo descontado');closeUsarModal();
