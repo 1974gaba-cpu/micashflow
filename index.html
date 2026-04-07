@@ -1965,13 +1965,14 @@ function renderCancelados(){
 }
 function delCancelado(id){ state.prestamos_cancelados=state.prestamos_cancelados.filter(r=>r.id!==id); saveState();renderCancelados(); }
 
-
+// ─── RENDER INVERSIONES COMPRAS ───────────────────────────────────────
 function eliminarCompraInv(invId, compraId){
   const inv=state.inversiones.find(r=>r.id===invId); if(!inv||!inv.compras)return;
-  if(!confirm("\u00bfEliminar este registro de compra? Solo borra el historial, no revierte el capital ni el val_inicial."))return;
+  if(!confirm('¿Eliminar este registro de compra? Solo borra el historial, no revierte el capital ni el val_inicial.'))return;
   inv.compras=inv.compras.filter(c=>c.id!==compraId);
-  saveState();renderAll();showToast("Registro de compra eliminado");
+  saveState();renderAll();showToast('Registro de compra eliminado');
 }
+
 // ─── RENDER PRESTAMOS IN ───────────────────────────────────────────────
 function eliminarPagoParcial(piId, pagoId){
   const pi=state.prestamos_in.find(r=>r.id===piId); if(!pi||!pi.pagos_parciales)return;
@@ -2072,21 +2073,38 @@ function renderInversiones(){
       const valAct=parseFloat(r.val)||0;
       const valIni=parseFloat(r.val_inicial)||0;
       const nCompras=parseInt(r.num_compras)||1;
+      const curLbl=r.cur;
       let perfHtml='';
       if(valIni>0){
-        const diffUSD=toUSD(valAct,r.cur)-toUSD(valIni,r.cur);
-        const pct=((valAct-valIni)/valIni*100);
-        const color=diffUSD>=0?'var(--green)':'var(--red)';
-        const signo=diffUSD>=0?'+':'';
+        const diff=valAct-valIni;
+        const pct=(diff/valIni*100);
+        const color=diff>=0?'var(--green)':'var(--red)';
+        const signo=diff>=0?'+':'';
         const pppBadge=nCompras>1?`<span style="font-size:9px;font-family:var(--mono);color:var(--amber);background:var(--amber-dim);padding:1px 5px;border-radius:3px;margin-right:4px">PPP·${nCompras}c</span>`:'';
-        perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:3px">${pppBadge}Invertido: USD ${fmtN(valIni)}</div>`+
-                 `<div style="font-size:10px;font-family:var(--mono);color:${color}">${signo}USD ${fmtN(Math.abs(diffUSD))} (${signo}${fmtN(pct)}%)</div>`;
+        let fondoHtml='';
+        if(r.compras&&r.compras.length){
+          const primeraConVal=r.compras.find(c=>c.val_antes!=null&&c.val_antes!==''&&parseFloat(c.val_antes)>0);
+          if(primeraConVal){
+            const sumComprasMonto=r.compras.reduce((a,c)=>a+(parseFloat(c.monto)||0),0);
+            const valIniOrig=valIni-sumComprasMonto;
+            const valAntesPrimera=parseFloat(primeraConVal.val_antes)||0;
+            if(valIniOrig>0&&valAntesPrimera>0){
+              const fondoPct=((valAntesPrimera-valIniOrig)/valIniOrig*100);
+              const fc=fondoPct>=0?'var(--green)':'var(--red)';
+              const fs=fondoPct>=0?'+':'';
+              fondoHtml=`<div style="font-size:10px;font-family:var(--mono);margin-top:4px;border-top:1px dashed var(--border2);padding-top:4px;display:flex;align-items:center;gap:5px"><span style="color:var(--muted)">Fondo real:</span><span style="color:${fc};font-weight:600">${fs}${fmtN(fondoPct)}%</span><span style="color:var(--muted);font-size:9px">(${curLbl} ${fmtN(valIniOrig)} → ${fmtN(valAntesPrimera)})</span></div>`;
+            }
+          }
+        }
+        perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:3px">${pppBadge}Invertido: ${curLbl} ${fmtN(valIni)}</div>`+
+                 `<div style="font-size:10px;font-family:var(--mono);color:${color}">${signo}${curLbl} ${fmtN(Math.abs(diff))} (${signo}${fmtN(pct)}%) total</div>`+
+                 fondoHtml;
       } else if(nCompras>1){
         perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--amber);margin-top:2px"><span style="background:var(--amber-dim);padding:1px 5px;border-radius:3px">PPP · ${nCompras} compras</span></div>`;
       }
       const fechaIni=r.fecha_inicio?`<div style="font-size:9px;font-family:var(--mono);color:var(--muted);margin-top:1px">desde ${new Date(r.fecha_inicio+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}</div>`:'';
       const comprasRows=(r.compras&&r.compras.length)
-        ? r.compras.map(c=>`<tr style="background:var(--surface2);opacity:0.8"><td colspan="3" style="padding-left:24px;font-size:10px;font-family:var(--mono);color:var(--muted)">└ ${c.fecha||'—'} · desde <span style="color:var(--muted2)">${c.desde||'—'}</span></td><td colspan="3" style="font-size:10px;font-family:var(--mono);color:var(--blue)">${r.cur} ${fmtN(c.monto)} invertido</td><td style="text-align:right"><button onclick="eliminarCompraInv('${r.id}','${c.id}')" title="Eliminar registro" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 6px">×</button></td></tr>`).join('')
+        ? r.compras.map(c=>`<tr style="background:var(--surface2);opacity:0.8"><td colspan="3" style="padding-left:24px;font-size:10px;font-family:var(--mono);color:var(--muted)">└ ${c.fecha||'—'} · desde <span style="color:var(--muted2)">${c.desde||'—'}</span></td><td colspan="3" style="font-size:10px;font-family:var(--mono);color:var(--blue)">${curLbl} ${fmtN(c.monto)} invertido${parseFloat(c.val_antes)>0?' <span style="color:var(--muted);font-size:9px">(fondo valía '+fmtN(c.val_antes)+')</span>':''}</td><td style="text-align:right"><button onclick="eliminarCompraInv('${r.id}','${c.id}')" title="Eliminar registro" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 6px">×</button></td></tr>`).join('')
         : '';
       return`<tr><td>${r.desc}</td><td><span class="badge bac">${r.tipo||'—'}</span></td><td>${curBadge(r.cur)}</td><td class="mono-cell"><div>${fmtN(r.val)}</div>${perfHtml}${fechaIni}</td><td>${liqBadge(r.liq)}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button class="btn-edit" onclick="moveInv('${r.id}',-1)" title="Subir" style="opacity:${globalIdx===0?0.2:1}">↑</button><button class="btn-edit" onclick="moveInv('${r.id}',1)" title="Bajar" style="opacity:${globalIdx===state.inversiones.length-1?0.2:1}">↓</button><button class="btn-edit" onclick="openEditModal('inversiones','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('inversiones','${r.id}')">×</button></td></tr>${comprasRows}`;
     }).join('');
@@ -2543,7 +2561,7 @@ function confirmarUsar(){
       const tipo=document.getElementById('usar-inv-nueva-tipo').value;
       const liq=document.getElementById('usar-inv-nueva-liq').value;
       if(!desc){showToast('⚠ Ingresá el nombre de la posición');return;}
-      state.inversiones.push({id:uid(),desc,broker:broker||'—',tipo,cur:cuenta.cur,val:String(monto),val_inicial:String(monto),num_compras:1,fecha_inicio:hoyInv,liq,note:'',compras:[{id:uid(),fecha:hoyInv,monto:String(monto),desde:cuenta.desc}]});
+      state.inversiones.push({id:uid(),desc,broker:broker||'—',tipo,cur:cuenta.cur,val:String(monto),val_inicial:String(monto),num_compras:1,fecha_inicio:hoyInv,liq,note:'',compras:[{id:uid(),fecha:hoyInv,monto:String(monto),val_antes:'0',desde:cuenta.desc}]});
     }else{
       const inv=state.inversiones.find(r=>r.id===invId); if(!inv)return;
       const valAntes=parseFloat(inv.val)||0;
@@ -2552,7 +2570,7 @@ function confirmarUsar(){
       inv.val_inicial=String(iniAntes+monto);
       inv.num_compras=(parseInt(inv.num_compras)||1)+1;
       if(!inv.compras) inv.compras=[];
-      inv.compras.push({id:uid(),fecha:hoyInv,monto:String(monto),desde:cuenta.desc});
+      inv.compras.push({id:uid(),fecha:hoyInv,monto:String(monto),val_antes:String(valAntes),desde:cuenta.desc});
     }
     cuenta.amt=String(saldo-monto);
     saveState();renderAll();showToast('✓ Inversión actualizada y saldo descontado');closeUsarModal();
