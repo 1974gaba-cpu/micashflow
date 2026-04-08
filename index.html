@@ -491,8 +491,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
       <div class="form-row" style="gap:12px">
         <div class="fg" style="flex:3"><label>Título</label><input id="nota-titulo" placeholder="Ej: Decisión de rescate COCOS"></div>
         <div class="fg"><label>Categoría</label><select id="nota-cat"><option value="General">General</option><option value="Inversión">Inversión</option><option value="Gasto">Gasto</option><option value="Ingreso">Ingreso</option><option value="Alerta">Alerta</option><option value="Recordatorio">Recordatorio</option></select></div>
-        <div class="fg"><label>Período</label><input id="nota-periodo" type="month"></div>
-        <div class="fg"><label>Fecha alerta <span style="font-size:9px;color:var(--muted)">(opcional)</span></label><input id="nota-fecha-alerta" type="date" title="Se muestra en el sidebar como recordatorio"></div>
+        <div class="fg"><label>Fecha <span style="font-size:9px;color:var(--muted)">(aparece en sidebar)</span></label><input id="nota-fecha-alerta" type="date"></div>
       </div>
       <div class="form-row" style="margin-top:10px">
         <div class="fg"><label>Contenido</label><textarea id="nota-body" placeholder="Escribí tu nota acá..." rows="3"></textarea></div>
@@ -1335,7 +1334,8 @@ function addDA(){
 function addNota(){
   const titulo=document.getElementById('nota-titulo').value.trim(); if(!titulo){alert('Agregá un título.');return;}
   const fechaAlerta=document.getElementById('nota-fecha-alerta').value||'';
-  state.notas.unshift({id:uid(),titulo,body:document.getElementById('nota-body').value.trim(),cat:document.getElementById('nota-cat').value,periodo:document.getElementById('nota-periodo').value||state.currentMonth,fecha:new Date().toISOString().slice(0,10),fecha_alerta:fechaAlerta});
+  const periodoNota=fechaAlerta?fechaAlerta.slice(0,7):state.currentMonth;
+  state.notas.unshift({id:uid(),titulo,body:document.getElementById('nota-body').value.trim(),cat:document.getElementById('nota-cat').value,periodo:periodoNota,fecha:new Date().toISOString().slice(0,10),fecha_alerta:fechaAlerta});
   saveState(); document.getElementById('nota-titulo').value=''; document.getElementById('nota-body').value=''; document.getElementById('nota-fecha-alerta').value=''; renderNotas(); renderNotasSidebar();
 }
 
@@ -3375,7 +3375,7 @@ function importData(event){
         state.ingresos_fijos={};
         state.ingresos_fijos[ym]=arr;
       }
-      saveState(); document.getElementById('tc-inp').value=state.fx; document.getElementById('nota-periodo').value=state.currentMonth;
+      saveState(); document.getElementById('tc-inp').value=state.fx;
       renderAll(); document.getElementById('imp-file').value=''; showToast(`✓ ${loaded} secciones importadas`);
     }catch(err){alert('Error al leer el archivo: '+err.message);}
   };
@@ -3409,7 +3409,7 @@ document.addEventListener('DOMContentLoaded',function(){
   if(!state.gf_pagos) state.gf_pagos={};
 
   document.getElementById('tc-inp').value=state.fx;
-  document.getElementById('nota-periodo').value=state.currentMonth;
+  
   renderAll();
   showSplash();
 });
