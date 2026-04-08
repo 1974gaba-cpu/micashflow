@@ -492,6 +492,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
         <div class="fg" style="flex:3"><label>Título</label><input id="nota-titulo" placeholder="Ej: Decisión de rescate COCOS"></div>
         <div class="fg"><label>Categoría</label><select id="nota-cat"><option value="General">General</option><option value="Inversión">Inversión</option><option value="Gasto">Gasto</option><option value="Ingreso">Ingreso</option><option value="Alerta">Alerta</option><option value="Recordatorio">Recordatorio</option></select></div>
         <div class="fg"><label>Período</label><input id="nota-periodo" type="month"></div>
+        <div class="fg"><label>Fecha alerta <span style="font-size:9px;color:var(--muted)">(opcional)</span></label><input id="nota-fecha-alerta" type="date" title="Se muestra en el sidebar como recordatorio"></div>
       </div>
       <div class="form-row" style="margin-top:10px">
         <div class="fg"><label>Contenido</label><textarea id="nota-body" placeholder="Escribí tu nota acá..." rows="3"></textarea></div>
@@ -1333,8 +1334,9 @@ function addDA(){
 }
 function addNota(){
   const titulo=document.getElementById('nota-titulo').value.trim(); if(!titulo){alert('Agregá un título.');return;}
-  state.notas.unshift({id:uid(),titulo,body:document.getElementById('nota-body').value.trim(),cat:document.getElementById('nota-cat').value,periodo:document.getElementById('nota-periodo').value||state.currentMonth,fecha:new Date().toISOString().slice(0,10)});
-  saveState(); document.getElementById('nota-titulo').value=''; document.getElementById('nota-body').value=''; renderNotas();
+  const fechaAlerta=document.getElementById('nota-fecha-alerta').value||'';
+  state.notas.unshift({id:uid(),titulo,body:document.getElementById('nota-body').value.trim(),cat:document.getElementById('nota-cat').value,periodo:document.getElementById('nota-periodo').value||state.currentMonth,fecha:new Date().toISOString().slice(0,10),fecha_alerta:fechaAlerta});
+  saveState(); document.getElementById('nota-titulo').value=''; document.getElementById('nota-body').value=''; document.getElementById('nota-fecha-alerta').value=''; renderNotas(); renderNotasSidebar();
 }
 
 function addPrestamoIn(){
@@ -1965,14 +1967,6 @@ function renderCancelados(){
 }
 function delCancelado(id){ state.prestamos_cancelados=state.prestamos_cancelados.filter(r=>r.id!==id); saveState();renderCancelados(); }
 
-// ─── RENDER INVERSIONES COMPRAS ───────────────────────────────────────
-function eliminarCompraInv(invId, compraId){
-  const inv=state.inversiones.find(r=>r.id===invId); if(!inv||!inv.compras)return;
-  if(!confirm('¿Eliminar este registro de compra? Solo borra el historial, no revierte el capital ni el val_inicial.'))return;
-  inv.compras=inv.compras.filter(c=>c.id!==compraId);
-  saveState();renderAll();showToast('Registro de compra eliminado');
-}
-
 // ─── RENDER PRESTAMOS IN ───────────────────────────────────────────────
 function eliminarPagoParcial(piId, pagoId){
   const pi=state.prestamos_in.find(r=>r.id===piId); if(!pi||!pi.pagos_parciales)return;
@@ -2073,40 +2067,20 @@ function renderInversiones(){
       const valAct=parseFloat(r.val)||0;
       const valIni=parseFloat(r.val_inicial)||0;
       const nCompras=parseInt(r.num_compras)||1;
-      const curLbl=r.cur;
       let perfHtml='';
       if(valIni>0){
-        const diff=valAct-valIni;
-        const pct=(diff/valIni*100);
-        const color=diff>=0?'var(--green)':'var(--red)';
-        const signo=diff>=0?'+':'';
+        const diffUSD=toUSD(valAct,r.cur)-toUSD(valIni,r.cur);
+        const pct=((valAct-valIni)/valIni*100);
+        const color=diffUSD>=0?'var(--green)':'var(--red)';
+        const signo=diffUSD>=0?'+':'';
         const pppBadge=nCompras>1?`<span style="font-size:9px;font-family:var(--mono);color:var(--amber);background:var(--amber-dim);padding:1px 5px;border-radius:3px;margin-right:4px">PPP·${nCompras}c</span>`:'';
-        let fondoHtml='';
-        if(r.compras&&r.compras.length){
-          const primeraConVal=r.compras.find(c=>c.val_antes!=null&&c.val_antes!==''&&parseFloat(c.val_antes)>0);
-          if(primeraConVal){
-            const sumComprasMonto=r.compras.reduce((a,c)=>a+(parseFloat(c.monto)||0),0);
-            const valIniOrig=valIni-sumComprasMonto;
-            const valAntesPrimera=parseFloat(primeraConVal.val_antes)||0;
-            if(valIniOrig>0&&valAntesPrimera>0){
-              const fondoPct=((valAntesPrimera-valIniOrig)/valIniOrig*100);
-              const fc=fondoPct>=0?'var(--green)':'var(--red)';
-              const fs=fondoPct>=0?'+':'';
-              fondoHtml=`<div style="font-size:10px;font-family:var(--mono);margin-top:4px;border-top:1px dashed var(--border2);padding-top:4px;display:flex;align-items:center;gap:5px"><span style="color:var(--muted)">Fondo real:</span><span style="color:${fc};font-weight:600">${fs}${fmtN(fondoPct)}%</span><span style="color:var(--muted);font-size:9px">(${curLbl} ${fmtN(valIniOrig)} → ${fmtN(valAntesPrimera)})</span></div>`;
-            }
-          }
-        }
-        perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:3px">${pppBadge}Invertido: ${curLbl} ${fmtN(valIni)}</div>`+
-                 `<div style="font-size:10px;font-family:var(--mono);color:${color}">${signo}${curLbl} ${fmtN(Math.abs(diff))} (${signo}${fmtN(pct)}%) total</div>`+
-                 fondoHtml;
+        perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:3px">${pppBadge}Invertido: USD ${fmtN(valIni)}</div>`+
+                 `<div style="font-size:10px;font-family:var(--mono);color:${color}">${signo}USD ${fmtN(Math.abs(diffUSD))} (${signo}${fmtN(pct)}%)</div>`;
       } else if(nCompras>1){
         perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--amber);margin-top:2px"><span style="background:var(--amber-dim);padding:1px 5px;border-radius:3px">PPP · ${nCompras} compras</span></div>`;
       }
       const fechaIni=r.fecha_inicio?`<div style="font-size:9px;font-family:var(--mono);color:var(--muted);margin-top:1px">desde ${new Date(r.fecha_inicio+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}</div>`:'';
-      const comprasRows=(r.compras&&r.compras.length)
-        ? r.compras.map(c=>`<tr style="background:var(--surface2);opacity:0.8"><td colspan="3" style="padding-left:24px;font-size:10px;font-family:var(--mono);color:var(--muted)">└ ${c.fecha||'—'} · desde <span style="color:var(--muted2)">${c.desde||'—'}</span></td><td colspan="3" style="font-size:10px;font-family:var(--mono);color:var(--blue)">${curLbl} ${fmtN(c.monto)} invertido${parseFloat(c.val_antes)>0?' <span style="color:var(--muted);font-size:9px">(fondo valía '+fmtN(c.val_antes)+')</span>':''}</td><td style="text-align:right"><button onclick="eliminarCompraInv('${r.id}','${c.id}')" title="Eliminar registro" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 6px">×</button></td></tr>`).join('')
-        : '';
-      return`<tr><td>${r.desc}</td><td><span class="badge bac">${r.tipo||'—'}</span></td><td>${curBadge(r.cur)}</td><td class="mono-cell"><div>${fmtN(r.val)}</div>${perfHtml}${fechaIni}</td><td>${liqBadge(r.liq)}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button class="btn-edit" onclick="moveInv('${r.id}',-1)" title="Subir" style="opacity:${globalIdx===0?0.2:1}">↑</button><button class="btn-edit" onclick="moveInv('${r.id}',1)" title="Bajar" style="opacity:${globalIdx===state.inversiones.length-1?0.2:1}">↓</button><button class="btn-edit" onclick="openEditModal('inversiones','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('inversiones','${r.id}')">×</button></td></tr>${comprasRows}`;
+      return`<tr><td>${r.desc}</td><td><span class="badge bac">${r.tipo||'—'}</span></td><td>${curBadge(r.cur)}</td><td class="mono-cell"><div>${fmtN(r.val)}</div>${perfHtml}${fechaIni}</td><td>${liqBadge(r.liq)}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button class="btn-edit" onclick="moveInv('${r.id}',-1)" title="Subir" style="opacity:${globalIdx===0?0.2:1}">↑</button><button class="btn-edit" onclick="moveInv('${r.id}',1)" title="Bajar" style="opacity:${globalIdx===state.inversiones.length-1?0.2:1}">↓</button><button class="btn-edit" onclick="openEditModal('inversiones','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('inversiones','${r.id}')">×</button></td></tr>`;
     }).join('');
     // Detectar si hay duplicados (mismo ticker+moneda) en este broker
     const tickerKeys=items.map(r=>r.desc.toLowerCase()+'|'+r.cur);
@@ -2281,23 +2255,62 @@ function renderGastosFijosTable(rows){
   initDragDrop('tb-gf','gastos_fijos');
 }
 
+function calcSaldoProyectado(r){
+  const tasa=parseFloat(r.tasa_anual)||0;
+  const base=parseFloat(r.amt)||0;
+  if(tasa<=0||!r.fecha_saldo) return {proyectado:base, dias:0, rendimiento:0};
+  const fechaBase=new Date(r.fecha_saldo+'T12:00:00');
+  const hoy=new Date(); hoy.setHours(12,0,0,0);
+  const dias=Math.max(0,Math.round((hoy-fechaBase)/86400000));
+  if(dias===0) return {proyectado:base, dias:0, rendimiento:0};
+  const proyectado=Math.round(base*Math.pow(1+tasa/100/365,dias)*100)/100;
+  return {proyectado, dias, rendimiento:Math.round((proyectado-base)*100)/100};
+}
+function aplicarRendimiento(id){
+  const r=state.efectivo.find(x=>x.id===id); if(!r)return;
+  const {proyectado}=calcSaldoProyectado(r);
+  r.amt=String(proyectado);
+  r.fecha_saldo=new Date().toISOString().slice(0,10);
+  saveState();renderEfectivoTable();renderEfectivoTotal();showToast(`✓ Saldo actualizado a ${r.cur} ${fmtN(proyectado)}`);
+}
+function editarTasa(id){
+  const r=state.efectivo.find(x=>x.id===id); if(!r)return;
+  const nueva=prompt(`Tasa anual actual: ${r.tasa_anual||0}%
+Ingresá la nueva tasa anual (ej: 26.5):`, r.tasa_anual||'');
+  if(nueva===null) return;
+  r.tasa_anual=nueva.trim();
+  if(!r.fecha_saldo) r.fecha_saldo=new Date().toISOString().slice(0,10);
+  saveState();renderEfectivoTable();showToast(`✓ Tasa actualizada: ${nueva}% anual`);
+}
 function renderEfectivoTable(){
   const tb=document.getElementById('tb-ef'); if(!tb)return;
-  const rows=state.efectivo; const col='efectivo'; const cols=['desc','tipo','cur','amt','note'];
+  const rows=state.efectivo; const col='efectivo';
   const cerrado=isCerrado(state.currentMonth);
-  if(!rows||!rows.length){tb.innerHTML=`<tr><td colspan="${cols.length+2}" class="empty-state">Sin entradas todavía</td></tr>`;return;}
-  tb.innerHTML=rows.map((r,idx)=>`<tr data-id="${r.id}">${cols.map(c=>{
-    if(c==='cur')return`<td>${curBadge(r[c])}</td>`;
-    if(c==='tipo')return`<td><span class="badge bac">${r[c]}</span></td>`;
-    if(c==='amt')return`<td class="mono-cell">${fmtN(r[c])}</td>`;
-    if(c==='note')return`<td class="note-cell" title="${(r[c]||'').replace(/"/g,'&quot;')}">${r[c]||'—'}</td>`;
-    return`<td>${r[c]||''}</td>`;
-  }).join('')}<td style="white-space:nowrap;display:flex;gap:4px;align-items:center">
-    ${!cerrado?`<button class="btn-cobrar" onclick="abrirUsar('${r.id}')" style="font-size:10px;padding:2px 8px">Usar</button>`:''}
-    <span class="drag-handle" title="Arrastrar">⠿</span>
-    <button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button>
-    <button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button>
-  </td></tr>`).join('');
+  if(!rows||!rows.length){tb.innerHTML=`<tr><td colspan="6" class="empty-state">Sin entradas todavía</td></tr>`;return;}
+  tb.innerHTML=rows.map((r,idx)=>{
+    const tasa=parseFloat(r.tasa_anual)||0;
+    const {proyectado,dias,rendimiento}=calcSaldoProyectado(r);
+    const tasaHtml=tasa>0
+      ?`<div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:5px">
+          <span style="color:var(--green)">${tasa}% anual</span>
+          ${dias>0?`<span style="color:var(--muted2)">· ${dias}d acum.</span><span style="color:var(--green);font-weight:600">+${fmtN(rendimiento)}</span>`:''}
+          ${dias>0?`<button onclick="aplicarRendimiento('${r.id}')" style="background:var(--green-dim);border:1px solid var(--green);border-radius:4px;color:var(--green);font-size:9px;font-family:var(--mono);padding:1px 6px;cursor:pointer;margin-left:2px">↻ Aplicar</button>`:''}
+          <button onclick="editarTasa('${r.id}')" style="background:none;border:none;color:var(--muted);font-size:10px;cursor:pointer;padding:0 2px" title="Editar tasa">✎</button>
+        </div>`
+      :`<div style="font-size:9px;font-family:var(--mono);color:var(--muted);margin-top:2px"><button onclick="editarTasa('${r.id}')" style="background:none;border:none;color:var(--border2);font-size:9px;font-family:var(--mono);cursor:pointer;padding:0" title="Agregar tasa de rendimiento">+ tasa</button></div>`;
+    return`<tr data-id="${r.id}">
+      <td><div>${r.desc||''}</div>${tasaHtml}</td>
+      <td><span class="badge bac">${r.tipo||'—'}</span></td>
+      <td>${curBadge(r.cur)}</td>
+      <td class="mono-cell">${fmtN(r.amt)}${tasa>0&&dias>0?`<div style="font-size:10px;color:var(--green);font-family:var(--mono)">→ ${fmtN(proyectado)} hoy</div>`:''}</td>
+      <td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td>
+      <td style="white-space:nowrap;display:flex;gap:4px;align-items:center">
+        ${!cerrado?`<button class="btn-cobrar" onclick="abrirUsar('${r.id}')" style="font-size:10px;padding:2px 8px">Usar</button>`:''}
+        <span class="drag-handle" title="Arrastrar">⠿</span>
+        <button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button>
+        <button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button>
+      </td></tr>`;
+  }).join('');
   initDragDrop('tb-ef','efectivo');
 }
 
@@ -2554,23 +2567,16 @@ function confirmarUsar(){
     const monto=parseFloat(document.getElementById('usar-inv-amt').value);
     if(!monto||monto<=0){showToast('⚠ Ingresá un monto válido');return;}
     if(monto>saldo){showToast('⚠ Monto supera el saldo disponible');return;}
-    const hoyInv=new Date().toISOString().slice(0,10);
     if(invId==='_nueva'){
       const desc=document.getElementById('usar-inv-nueva-desc').value.trim();
       const broker=document.getElementById('usar-inv-nueva-broker').value.trim();
       const tipo=document.getElementById('usar-inv-nueva-tipo').value;
       const liq=document.getElementById('usar-inv-nueva-liq').value;
       if(!desc){showToast('⚠ Ingresá el nombre de la posición');return;}
-      state.inversiones.push({id:uid(),desc,broker:broker||'—',tipo,cur:cuenta.cur,val:String(monto),val_inicial:String(monto),num_compras:1,fecha_inicio:hoyInv,liq,note:'',compras:[{id:uid(),fecha:hoyInv,monto:String(monto),val_antes:'0',desde:cuenta.desc}]});
+      state.inversiones.push({id:uid(),desc,broker:broker||'—',tipo,cur:cuenta.cur,val:String(monto),liq,note:''});
     }else{
       const inv=state.inversiones.find(r=>r.id===invId); if(!inv)return;
-      const valAntes=parseFloat(inv.val)||0;
-      const iniAntes=parseFloat(inv.val_inicial)||0;
-      inv.val=String(valAntes+monto);
-      inv.val_inicial=String(iniAntes+monto);
-      inv.num_compras=(parseInt(inv.num_compras)||1)+1;
-      if(!inv.compras) inv.compras=[];
-      inv.compras.push({id:uid(),fecha:hoyInv,monto:String(monto),val_antes:String(valAntes),desde:cuenta.desc});
+      inv.val=String((parseFloat(inv.val)||0)+monto);
     }
     cuenta.amt=String(saldo-monto);
     saveState();renderAll();showToast('✓ Inversión actualizada y saldo descontado');closeUsarModal();
@@ -2656,6 +2662,7 @@ function renderAll(){
   if(document.getElementById('page-retiro').classList.contains('active')) renderRetiro();
   if(document.getElementById('page-resumen').classList.contains('active')) renderResumen();
   if(document.getElementById('page-historial').classList.contains('active')) renderHistorial();
+  renderNotasSidebar();
 }
 
 // ─── SEGUROS CON CAPITALIZACIÓN ────────────────────────────────────────
@@ -3118,10 +3125,37 @@ function renderHistorial(){
 }
 
 // ─── NOTAS ─────────────────────────────────────────────────────────────
+function renderNotasSidebar(){
+  const hoy=new Date().toISOString().slice(0,10);
+  const conFecha=(state.notas||[]).filter(n=>n.fecha_alerta).sort((a,b)=>a.fecha_alerta.localeCompare(b.fecha_alerta));
+  const navItem=document.getElementById('nav-notas');
+  const alertsDiv=document.getElementById('nav-notas-alerts');
+  if(!navItem||!alertsDiv) return;
+  if(!conFecha.length){
+    navItem.style.color=''; alertsDiv.style.display='none'; alertsDiv.innerHTML=''; return;
+  }
+  navItem.style.color='var(--green)';
+  alertsDiv.style.display='block';
+  alertsDiv.innerHTML=conFecha.map(n=>{
+    const esHoy=n.fecha_alerta===hoy;
+    const esPasada=n.fecha_alerta<hoy;
+    const color=esHoy?'var(--amber)':esPasada?'var(--red)':'var(--muted2)';
+    const dF=new Date(n.fecha_alerta+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+    return`<div onclick="goTab('notas',document.getElementById('nav-notas'))" style="font-size:10px;font-family:var(--mono);color:${color};padding:2px 0 2px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${n.titulo}">${dF} — ${n.titulo}</div>`;
+  }).join('');
+}
 function renderNotas(){
   const c=document.getElementById('notas-list'); if(!c)return;
   if(!state.notas.length){c.innerHTML='<div class="empty-state">No hay notas todavía.</div>';return;}
-  c.innerHTML=state.notas.map(n=>`<div class="note-card"><div class="nc-head"><div><div class="nc-title">${n.titulo}</div><div class="nc-meta">${catBadge(n.cat)} <span style="color:var(--muted);margin-left:6px">${n.periodo?mlabel(n.periodo):''} · ${n.fecha||''}</span></div></div><button class="btn-del" onclick="delNota('${n.id}')">×</button></div>${n.body?`<div class="nc-body">${n.body}</div>`:''}</div>`).join('');
+  const hoyStr=new Date().toISOString().slice(0,10);
+  c.innerHTML=state.notas.map(n=>{
+    const hasAlerta=!!n.fecha_alerta;
+    const esHoy=n.fecha_alerta===hoyStr;
+    const esPasada=n.fecha_alerta&&n.fecha_alerta<hoyStr;
+    const alertaColor=esHoy?'var(--amber)':esPasada?'var(--red)':'var(--blue)';
+    const alertaBadge=hasAlerta?`<span style="font-size:10px;font-family:var(--mono);background:${alertaColor}22;color:${alertaColor};border:1px solid ${alertaColor}44;border-radius:4px;padding:1px 7px;margin-left:6px">📅 ${new Date(n.fecha_alerta+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'})}</span>`:'';
+    return`<div class="note-card" style="${esHoy?'border-color:var(--amber)':''}${esPasada?'border-color:var(--red)':''}"><div class="nc-head"><div><div class="nc-title">${n.titulo}${alertaBadge}</div><div class="nc-meta">${catBadge(n.cat)} <span style="color:var(--muted);margin-left:6px">${n.periodo?mlabel(n.periodo):''} · ${n.fecha||''}</span></div></div><button class="btn-del" onclick="delNota('${n.id}')">×</button></div>${n.body?`<div class="nc-body">${n.body}</div>`:''}</div>`;
+  }).join('');
 }
 
 // ─── EDIT MODAL ────────────────────────────────────────────────────────
@@ -3132,7 +3166,7 @@ const FDEFS={
   tarjetas:[{k:'desc',l:'Descripción',t:'text'},{k:'tarjeta',l:'Tarjeta',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'date',l:'Fecha consumo',t:'date'},{k:'note',l:'Nota',t:'text'}],
   gastos_directos:[{k:'desc',l:'Descripción',t:'text'},{k:'medio',l:'Medio',t:'select',o:['Efectivo','Billetera digital','Transferencia']},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'date',l:'Fecha',t:'date'},{k:'note',l:'Nota',t:'text'}],
   inversiones:[{k:'desc',l:'Ticker',t:'text'},{k:'broker',l:'Broker',t:'text'},{k:'tipo',l:'Tipo',t:'select',o:['Fondo','CEDEAR','Acción','Bono','Otro']},{k:'cur',l:'Moneda',t:'select',o:['USD','ARS']},{k:'val',l:'Valor actual',t:'number'},{k:'val_inicial',l:'Valor inicial (invertido)',t:'number'},{k:'num_compras',l:'Nº compras',t:'number'},{k:'fecha_inicio',l:'Fecha inicio',t:'date'},{k:'liq',l:'Liquidez',t:'select',o:['Inmediata','Corto','Medio','Largo']},{k:'note',l:'Nota',t:'text'}],
-  efectivo:[{k:'desc',l:'Descripción',t:'text'},{k:'tipo',l:'Tipo',t:'select',o:['Efectivo','Billetera digital','Cuenta bancaria','Otro']},{k:'cur',l:'Moneda',t:'select',o:['USD','ARS']},{k:'amt',l:'Monto',t:'number'},{k:'note',l:'Nota',t:'text'}],
+  efectivo:[{k:'desc',l:'Descripción',t:'text'},{k:'tipo',l:'Tipo',t:'select',o:['Efectivo','Billetera digital','Cuenta bancaria','Otro']},{k:'cur',l:'Moneda',t:'select',o:['USD','ARS']},{k:'amt',l:'Monto',t:'number'},{k:'tasa_anual',l:'Tasa anual % (ej: 26)',t:'number'},{k:'fecha_saldo',l:'Fecha del saldo',t:'date'},{k:'note',l:'Nota',t:'text'}],
   prestamos_out:[{k:'desc',l:'Deudor',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Cuota',t:'number'},{k:'cuotas',l:'Cuotas rest.',t:'number'},{k:'day',l:'Día cobro',t:'number'},{k:'inicio',l:'Mes inicio',t:'month'},{k:'note',l:'Nota',t:'text'}],
   prestamos_in:[{k:'desc',l:'Acreedor',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'capital',l:'Capital',t:'number'},{k:'fecha_inicio',l:'Fecha inicio',t:'date'},{k:'tasa_anual',l:'Tasa anual %',t:'number'},{k:'fecha_vencimiento',l:'Fecha vencimiento',t:'date'},{k:'note',l:'Nota',t:'text'}],
   da_fijos:[{k:'desc',l:'Descripción',t:'text'},{k:'tarjeta',l:'Tarjeta',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'cuotas_total',l:'Cuotas totales',t:'number'},{k:'inicio',l:'Mes inicio',t:'month'},{k:'note',l:'Nota',t:'text'}],
