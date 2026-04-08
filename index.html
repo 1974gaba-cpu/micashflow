@@ -187,7 +187,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
   <div class="nav-item" onclick="goTab('resumen',this)"><span>≡</span> Resumen mensual</div>
   <div class="nav-item" onclick="goTab('historial',this)"><span>◌</span> Historial</div>
   <div class="nav-section">General</div>
-  <div class="nav-item" onclick="goTab('notas',this)"><span>✎</span> Notas</div>
+  <div class="nav-item" id="nav-notas" onclick="goTab('notas',this)"><span>✎</span> Notas</div>
+  <div id="nav-notas-alerts" style="display:none;padding:0 20px 8px"></div>
 </div>
 
 <div class="main">
@@ -3139,10 +3140,20 @@ function renderNotasSidebar(){
   alertsDiv.innerHTML=conFecha.map(n=>{
     const esHoy=n.fecha_alerta===hoy;
     const esPasada=n.fecha_alerta<hoy;
-    const color=esHoy?'var(--amber)':esPasada?'var(--red)':'var(--muted2)';
+    const color=esHoy?'var(--amber)':esPasada?'var(--red)':'var(--green)';
     const dF=new Date(n.fecha_alerta+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
-    return`<div onclick="goTab('notas',document.getElementById('nav-notas'))" style="font-size:10px;font-family:var(--mono);color:${color};padding:2px 0 2px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${n.titulo}">${dF} — ${n.titulo}</div>`;
+    return`<div onclick="irANota('${n.id}')" style="font-size:10px;font-family:var(--mono);color:${color};padding:3px 0 3px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:2px solid ${color}44;margin-bottom:2px" title="${n.titulo}">${dF} — ${n.titulo}</div>`;
   }).join('');
+}
+function irANota(id){
+  // Navegar a notas y hacer scroll a la nota específica
+  const navItem=document.getElementById('nav-notas');
+  goTab('notas', navItem);
+  // Scroll a la nota después de que renderice
+  setTimeout(()=>{
+    const el=document.querySelector('[data-nota-id="'+id+'"]');
+    if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.outline='2px solid var(--accent)'; setTimeout(()=>el.style.outline='',1800); }
+  },80);
 }
 function renderNotas(){
   const c=document.getElementById('notas-list'); if(!c)return;
@@ -3154,7 +3165,7 @@ function renderNotas(){
     const esPasada=n.fecha_alerta&&n.fecha_alerta<hoyStr;
     const alertaColor=esHoy?'var(--amber)':esPasada?'var(--red)':'var(--blue)';
     const alertaBadge=hasAlerta?`<span style="font-size:10px;font-family:var(--mono);background:${alertaColor}22;color:${alertaColor};border:1px solid ${alertaColor}44;border-radius:4px;padding:1px 7px;margin-left:6px">📅 ${new Date(n.fecha_alerta+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'})}</span>`:'';
-    return`<div class="note-card" style="${esHoy?'border-color:var(--amber)':''}${esPasada?'border-color:var(--red)':''}"><div class="nc-head"><div><div class="nc-title">${n.titulo}${alertaBadge}</div><div class="nc-meta">${catBadge(n.cat)} <span style="color:var(--muted);margin-left:6px">${n.periodo?mlabel(n.periodo):''} · ${n.fecha||''}</span></div></div><button class="btn-del" onclick="delNota('${n.id}')">×</button></div>${n.body?`<div class="nc-body">${n.body}</div>`:''}</div>`;
+    return`<div class="note-card" data-nota-id="${n.id}" style="${esHoy?'border-color:var(--amber)':''}${esPasada?'border-color:var(--red)':''}"><div class="nc-head"><div><div class="nc-title">${n.titulo}${alertaBadge}</div><div class="nc-meta">${catBadge(n.cat)} <span style="color:var(--muted);margin-left:6px">${n.periodo?mlabel(n.periodo):''} · ${n.fecha||''}</span></div></div><button class="btn-del" onclick="delNota('${n.id}')">×</button></div>${n.body?`<div class="nc-body">${n.body}</div>`:''}</div>`;
   }).join('');
 }
 
