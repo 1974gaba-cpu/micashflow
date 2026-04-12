@@ -1192,6 +1192,7 @@ function moveInv(id, dir){
 
 // ─── DRAG & DROP ──────────────────────────────────────────────────────
 let _dragSrcId=null,_dragCol=null,_dragIsMonthly=false;
+let _activeTab='ingresos';
 function initDragDrop(tbodyId,col){
   const tbody=document.getElementById(tbodyId); if(!tbody)return;
   const isMonthly=['ingresos_fijos','ingresos_espo','tarjetas','gastos_directos'].includes(col);
@@ -1223,11 +1224,8 @@ function goTab(tab,el){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+tab).classList.add('active');
   if(el)el.classList.add('active');
-  if(tab==='resumen')renderResumen();
-  if(tab==='historial')renderHistorial();
-  if(tab==='notas')renderNotas();
-  if(tab==='seguros')renderSeguros();
-  if(tab==='retiro')renderRetiro();
+  _activeTab=tab;
+  renderActiveTab();
 }
 
 // ─── ADD ITEMS ─────────────────────────────────────────────────────────
@@ -2626,6 +2624,47 @@ function renderTable(tbodyId,rows,cols,col){
 }
 
 // ─── RENDER ALL ────────────────────────────────────────────────────────
+function renderActiveTab(){
+  const ym=state.currentMonth;
+  const cierre=isCerrado(ym)?state.cierres[ym]:null;
+  const gfVista=cierre&&cierre.gf_amts
+    ?state.gastos_fijos.map(r=>{const s=cierre.gf_amts[r.id];return s?{...r,amt:s.amt,cur:s.cur}:r;})
+    :state.gastos_fijos.map(r=>{const o=state.gf_overrides&&state.gf_overrides[ym]&&state.gf_overrides[ym][r.id];return o?{...r,amt:o.amt,cur:o.cur}:r;});
+  if(_activeTab==='ingresos'){
+    renderTable('tb-if',state.ingresos_fijos[ym]||[],['desc','cur','amt','day','note'],'ingresos_fijos');
+    renderTable('tb-ie',state.ingresos_espo[ym]||[],['desc','cur','amt','date','note'],'ingresos_espo');
+  } else if(_activeTab==='gastos'){
+    renderGastosFijosTable(gfVista);
+    renderDA(ym);
+    const tcRows=(state.tarjetas[ym]||[]).slice().sort((a,b)=>(a.tarjeta||'').localeCompare(b.tarjeta||''));
+    renderTable('tb-tc',tcRows,['desc','tarjeta','cur','amt','date','note'],'tarjetas');
+    const tarjetasSet=new Set();
+    (state.da_fijos||[]).forEach(r=>{if(r.tarjeta)tarjetasSet.add(r.tarjeta);});
+    (state.tarjetas[ym]||[]).forEach(r=>{if(r.tarjeta)tarjetasSet.add(r.tarjeta);});
+    const dl=document.getElementById('tc-tar-list');
+    if(dl)dl.innerHTML=[...tarjetasSet].sort().map(t=>`<option value="${t}">`).join('');
+    renderTable('tb-gd',state.gastos_directos[ym]||[],['desc','medio','cur','amt','date','note'],'gastos_directos');
+  } else if(_activeTab==='inversiones'){
+    renderInversiones();
+  } else if(_activeTab==='efectivo'){
+    renderEfectivoTable();
+    renderEfectivoTotal();
+  } else if(_activeTab==='prestamos'){
+    renderPrestamos('prestamos_out','tb-po');
+    renderPrestamosIn();
+    renderCancelados();
+  } else if(_activeTab==='seguros'){
+    renderSeguros();
+  } else if(_activeTab==='retiro'){
+    renderRetiro();
+  } else if(_activeTab==='resumen'){
+    renderResumen();
+  } else if(_activeTab==='historial'){
+    renderHistorial();
+  } else if(_activeTab==='notas'){
+    renderNotas();
+  }
+}
 function renderAll(){
   const ym=state.currentMonth;
   document.getElementById('month-lbl').textContent=mlabel(ym);
@@ -2633,38 +2672,9 @@ function renderAll(){
   if(btnToday) btnToday.style.visibility=ym===new Date().toISOString().slice(0,7)?'hidden':'visible';
   document.getElementById('tc-inp').value=state.fx;
   document.querySelectorAll('[id^="ml-"]').forEach(el=>el.textContent=mlabel(ym));
-  // Para meses cerrados, mostrar gastos fijos con montos del snapshot (read-only visual)
-  const cierre=isCerrado(ym)?state.cierres[ym]:null;
-  const gfVista = cierre&&cierre.gf_amts
-    ? state.gastos_fijos.map(r=>{ const s=cierre.gf_amts[r.id]; return s?{...r,amt:s.amt,cur:s.cur}:r; })
-    : state.gastos_fijos.map(r=>{ const o=state.gf_overrides&&state.gf_overrides[ym]&&state.gf_overrides[ym][r.id]; return o?{...r,amt:o.amt,cur:o.cur}:r; });
-  renderTable('tb-if',state.ingresos_fijos[ym]||[],['desc','cur','amt','day','note'],'ingresos_fijos');
-  renderTable('tb-ie',state.ingresos_espo[ym]||[],['desc','cur','amt','date','note'],'ingresos_espo');
-  renderGastosFijosTable(gfVista);
-  renderDA(ym);
-  // Sort tarjetas por tarjeta y poblar datalist
-  const tcRows = (state.tarjetas[ym]||[]).slice().sort((a,b)=>(a.tarjeta||'').localeCompare(b.tarjeta||''));
-  renderTable('tb-tc',tcRows,['desc','tarjeta','cur','amt','date','note'],'tarjetas');
-  // Poblar datalist de tarjetas con valores únicos de da_fijos + tarjetas
-  const tarjetasSet = new Set();
-  (state.da_fijos||[]).forEach(r=>{ if(r.tarjeta) tarjetasSet.add(r.tarjeta); });
-  (state.tarjetas[ym]||[]).forEach(r=>{ if(r.tarjeta) tarjetasSet.add(r.tarjeta); });
-  const dl = document.getElementById('tc-tar-list');
-  if(dl) dl.innerHTML = [...tarjetasSet].sort().map(t=>`<option value="${t}">`).join('');
-  renderTable('tb-gd',state.gastos_directos[ym]||[],['desc','medio','cur','amt','date','note'],'gastos_directos');
-  renderInversiones();
-  renderEfectivoTable();
-  renderEfectivoTotal();
-  renderPrestamos('prestamos_out','tb-po');
-  renderPrestamosIn();
-  renderCancelados();
   renderAlerts();
-  // Renderizar seguros solo si la tab está activa (evitar trabajo innecesario)
-  if(document.getElementById('page-seguros').classList.contains('active')) renderSeguros();
-  if(document.getElementById('page-retiro').classList.contains('active')) renderRetiro();
-  if(document.getElementById('page-resumen').classList.contains('active')) renderResumen();
-  if(document.getElementById('page-historial').classList.contains('active')) renderHistorial();
   renderNotasSidebar();
+  renderActiveTab();
 }
 
 // ─── SEGUROS CON CAPITALIZACIÓN ────────────────────────────────────────
