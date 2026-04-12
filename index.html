@@ -3338,7 +3338,7 @@ function confirmarQuickGasto(tipo){
     const item={id:uid(),desc,medio,cur,amt,date:new Date().toISOString().slice(0,10),note};
     if(!state.gastos_directos[ym])state.gastos_directos[ym]=[];
     state.gastos_directos[ym].push(item);
-    saveState(); driveSave(); renderAll();
+    saveState(); setTimeout(()=>{ if(driveToken) driveSave(); }, 600); renderAll();
     showToast('✓ Gasto directo guardado');
     // Ofrecer descuento
     const mn=medio.toLowerCase();
@@ -3366,7 +3366,7 @@ function confirmarQuickGasto(tipo){
     const item={id:uid(),desc,tarjeta,cur,amt,date:new Date().toISOString().slice(0,10),note};
     if(!state.tarjetas[ymTarjeta])state.tarjetas[ymTarjeta]=[];
     state.tarjetas[ymTarjeta].push(item);
-    saveState(); driveSave(); renderAll();
+    saveState(); setTimeout(()=>{ if(driveToken) driveSave(); }, 600); renderAll();
     showToast('✓ Guardado en '+mlabel(ymTarjeta));
     preguntarOtroGasto(tipo);
   } else if(tipo==='cuotas'){
@@ -3379,7 +3379,7 @@ function confirmarQuickGasto(tipo){
     const note=document.getElementById('qda-note').value.trim();
     const item={id:uid(),desc,tarjeta,cur,amt,cuotas_total:cuotas,inicio:ym,note};
     state.da_fijos.push(item);
-    saveState(); driveSave(); renderAll();
+    saveState(); setTimeout(()=>{ if(driveToken) driveSave(); }, 600); renderAll();
     showToast('✓ Cuotas guardadas');
     preguntarOtroGasto(tipo);
   }
