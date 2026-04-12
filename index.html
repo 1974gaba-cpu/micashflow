@@ -994,6 +994,18 @@ function clearLocalCache(){
   setTimeout(()=>location.reload(), 1500);
 }
 function driveSaveDebounced(){ if(!driveToken) return; clearTimeout(driveSaveTimeout); driveSaveTimeout = setTimeout(()=>driveSave(), 3000); }
+async function driveSaveQuiet(){
+  // Igual que driveSave pero sin tocar el status del topbar
+  if(!driveToken) return;
+  const data={version:3,savedAt:new Date().toISOString()};
+  STATE_KEYS.forEach(k=>{data[k]=state[k];});
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  try{
+    if(driveFileId){
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`,{method:'PATCH',headers:{Authorization:'Bearer '+driveToken,'Content-Type':'application/json'},body:blob});
+    }
+  }catch(e){}
+}
 function checkDriveBeforeEdit(){
   if(driveToken) return;
   let t=document.getElementById('cf-drive-warn');
@@ -3324,7 +3336,7 @@ function cerrarQuickAdd(){
   document.getElementById('quick-add-modal').style.display='none';
   ['qgd-desc','qgd-amt','qgd-note','qtc-desc','qtc-tar','qtc-amt','qtc-note','qda-desc','qda-tar','qda-amt','qda-cuotas','qda-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const banner=document.getElementById('qa-otro-banner');
-  if(banner) banner.style.display='none';
+  if(banner){ banner.style.display='none'; }
 }
 function setQuickTab(tab){
   _quickTab=tab;
@@ -3348,7 +3360,7 @@ function confirmarQuickGasto(tipo){
     const item={id:uid(),desc,medio,cur,amt,date:new Date().toISOString().slice(0,10),note};
     if(!state.gastos_directos[ym])state.gastos_directos[ym]=[];
     state.gastos_directos[ym].push(item);
-    saveState(); setTimeout(()=>{ if(driveToken) driveSave(); }, 600); renderAll();
+    saveState(); driveSaveQuiet(); renderAll();
     showToast('✓ Gasto directo guardado');
     // Ofrecer descuento
     const mn=medio.toLowerCase();
@@ -3376,7 +3388,7 @@ function confirmarQuickGasto(tipo){
     const item={id:uid(),desc,tarjeta,cur,amt,date:new Date().toISOString().slice(0,10),note};
     if(!state.tarjetas[ymTarjeta])state.tarjetas[ymTarjeta]=[];
     state.tarjetas[ymTarjeta].push(item);
-    saveState(); setTimeout(()=>{ if(driveToken) driveSave(); }, 600); renderAll();
+    saveState(); driveSaveQuiet(); renderAll();
     showToast('✓ Guardado en '+mlabel(ymTarjeta));
     preguntarOtroGasto(tipo);
   } else if(tipo==='cuotas'){
@@ -3389,34 +3401,36 @@ function confirmarQuickGasto(tipo){
     const note=document.getElementById('qda-note').value.trim();
     const item={id:uid(),desc,tarjeta,cur,amt,cuotas_total:cuotas,inicio:ym,note};
     state.da_fijos.push(item);
-    saveState(); setTimeout(()=>{ if(driveToken) driveSave(); }, 600); renderAll();
+    saveState(); driveSaveQuiet(); renderAll();
     showToast('✓ Cuotas guardadas');
     preguntarOtroGasto(tipo);
   }
 }
 function preguntarOtroGasto(tipo){
-  // Mostrar botones "¿Cargás otro?" dentro del modal sin cerrarlo
-  const modal=document.getElementById('quick-add-modal');
-  const inner=modal.querySelector('div');
   // Limpiar campos del tipo actual
   const limpiar={'directo':['qgd-desc','qgd-amt','qgd-note'],'1pago':['qtc-desc','qtc-amt','qtc-note'],'cuotas':['qda-desc','qda-amt','qda-cuotas','qda-note']};
   (limpiar[tipo]||[]).forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  // Mostrar banner temporal
+  // Banner fijo al fondo del overlay (fuera del scroll del modal)
   let banner=document.getElementById('qa-otro-banner');
   if(!banner){
     banner=document.createElement('div');
     banner.id='qa-otro-banner';
-    banner.style.cssText='position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);padding:14px 0 4px;display:flex;gap:10px;';
-    inner.appendChild(banner);
+    banner.style.cssText='position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:2px solid var(--accent);padding:14px 20px;display:flex;gap:10px;z-index:2100;';
+    document.body.appendChild(banner);
   }
-  banner.innerHTML=`<button onclick="cerrarQuickAdd()" style="flex:1;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--muted2);font-size:14px;cursor:pointer;font-family:var(--sans)">No, listo</button>
-    <button onclick="otroGasto()" style="flex:2;padding:12px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--sans)">+ Cargar otro</button>`;
+  banner.innerHTML=`<div style="flex:1;display:flex;flex-direction:column;gap:4px">
+    <div style="font-size:12px;font-weight:700;color:var(--green)">✓ Guardado</div>
+    <div style="font-size:11px;font-family:var(--mono);color:var(--muted)">¿Cargás otro gasto?</div>
+  </div>
+  <button onclick="cerrarQuickAdd()" style="padding:10px 18px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--muted2);font-size:14px;cursor:pointer;font-family:var(--sans)">No, listo</button>
+  <button onclick="otroGasto('${tipo}')" style="padding:10px 20px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--sans)">+ Otro</button>`;
   banner.style.display='flex';
   setTimeout(()=>{ const first=document.querySelector('#qpanel-'+tipo+' input'); if(first)first.focus(); },100);
 }
-function otroGasto(){
+function otroGasto(tipo){
   const banner=document.getElementById('qa-otro-banner');
   if(banner) banner.style.display='none';
+  if(tipo) setQuickTab(tipo);
 }
 
 // ─── EXPORT / IMPORT ───────────────────────────────────────────────────
