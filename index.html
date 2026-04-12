@@ -767,6 +767,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
           <div style="flex:1"><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Moneda</label><select id="qtc-cur" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"><option value="ARS">ARS</option><option value="USD">USD</option></select></div>
           <div style="flex:2"><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Monto</label><input id="qtc-amt" type="number" placeholder="0" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--mono);font-size:14px;outline:none;margin-top:4px"></div>
         </div>
+        <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Mes del resumen <span style="color:var(--amber);font-size:9px">— ¿en qué mes lo pagás?</span></label><select id="qtc-mes" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></select></div>
         <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Nota (opcional)</label><input id="qtc-note" placeholder="" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></div>
       </div>
       <button onclick="confirmarQuickGasto('1pago')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans)">✓ Guardar gasto</button>
@@ -3293,11 +3294,27 @@ function abrirQuickAdd(){
   const opts=[...tarjetas].sort().map(t=>'<option value="'+t+'">').join('');
   ['qtc-tar-list','qda-tar-list'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=opts;});
   setQuickTab('directo');
+  // Poblar selector de mes para tarjetas (mes actual + próximos 2)
+  const selMes=document.getElementById('qtc-mes');
+  if(selMes){
+    selMes.innerHTML='';
+    const hoyD=new Date();
+    for(let i=0;i<3;i++){
+      const d=new Date(hoyD.getFullYear(),hoyD.getMonth()+i,1);
+      const ym=d.toISOString().slice(0,7);
+      const opt=document.createElement('option');
+      opt.value=ym; opt.textContent=mlabel(ym);
+      if(i===1) opt.selected=true; // default: mes siguiente
+      selMes.appendChild(opt);
+    }
+  }
   document.getElementById('quick-add-modal').style.display='flex';
 }
 function cerrarQuickAdd(){
   document.getElementById('quick-add-modal').style.display='none';
   ['qgd-desc','qgd-amt','qgd-note','qtc-desc','qtc-tar','qtc-amt','qtc-note','qda-desc','qda-tar','qda-amt','qda-cuotas','qda-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const banner=document.getElementById('qa-otro-banner');
+  if(banner) banner.style.display='none';
 }
 function setQuickTab(tab){
   _quickTab=tab;
@@ -3321,15 +3338,23 @@ function confirmarQuickGasto(tipo){
     const item={id:uid(),desc,medio,cur,amt,date:new Date().toISOString().slice(0,10),note};
     if(!state.gastos_directos[ym])state.gastos_directos[ym]=[];
     state.gastos_directos[ym].push(item);
-    saveState();renderAll();
-    showToast('Gasto directo guardado');
-    cerrarQuickAdd();
+    saveState(); driveSave(); renderAll();
+    showToast('✓ Gasto directo guardado');
     // Ofrecer descuento
     const mn=medio.toLowerCase();
+    let abreDescuento=false;
     if(mn.includes('efectivo')||mn.includes('billetera')||mn.includes('digital')){
       const match=state.efectivo.filter(c=>c.cur===cur&&parseFloat(c.amt)>0);
-      if(match.length>0){_gdItem={desc,cur,amt:parseFloat(amt)||0};abrirDescuentoModal(match);}
+      if(match.length>0){_gdItem={desc,cur,amt:parseFloat(amt)||0};abreDescuento=true;
+        // Limpiar campos para posible otro gasto
+        document.getElementById('qgd-desc').value='';
+        document.getElementById('qgd-amt').value='';
+        document.getElementById('qgd-note').value='';
+        abrirDescuentoModal(match);
+        return;
+      }
     }
+    preguntarOtroGasto(tipo);
   } else if(tipo==='1pago'){
     const desc=document.getElementById('qtc-desc').value.trim();
     if(!desc){showToast('Completa la descripcion');return;}
@@ -3337,12 +3362,13 @@ function confirmarQuickGasto(tipo){
     const cur=document.getElementById('qtc-cur').value;
     const amt=document.getElementById('qtc-amt').value;
     const note=document.getElementById('qtc-note').value.trim();
+    const ymTarjeta=document.getElementById('qtc-mes').value||ym;
     const item={id:uid(),desc,tarjeta,cur,amt,date:new Date().toISOString().slice(0,10),note};
-    if(!state.tarjetas[ym])state.tarjetas[ym]=[];
-    state.tarjetas[ym].push(item);
-    saveState();renderAll();
-    showToast('Gasto en tarjeta guardado');
-    cerrarQuickAdd();
+    if(!state.tarjetas[ymTarjeta])state.tarjetas[ymTarjeta]=[];
+    state.tarjetas[ymTarjeta].push(item);
+    saveState(); driveSave(); renderAll();
+    showToast('✓ Guardado en '+mlabel(ymTarjeta));
+    preguntarOtroGasto(tipo);
   } else if(tipo==='cuotas'){
     const desc=document.getElementById('qda-desc').value.trim();
     if(!desc){showToast('Completa la descripcion');return;}
@@ -3353,10 +3379,34 @@ function confirmarQuickGasto(tipo){
     const note=document.getElementById('qda-note').value.trim();
     const item={id:uid(),desc,tarjeta,cur,amt,cuotas_total:cuotas,inicio:ym,note};
     state.da_fijos.push(item);
-    saveState();renderAll();
-    showToast('Cuotas guardadas');
-    cerrarQuickAdd();
+    saveState(); driveSave(); renderAll();
+    showToast('✓ Cuotas guardadas');
+    preguntarOtroGasto(tipo);
   }
+}
+function preguntarOtroGasto(tipo){
+  // Mostrar botones "¿Cargás otro?" dentro del modal sin cerrarlo
+  const modal=document.getElementById('quick-add-modal');
+  const inner=modal.querySelector('div');
+  // Limpiar campos del tipo actual
+  const limpiar={'directo':['qgd-desc','qgd-amt','qgd-note'],'1pago':['qtc-desc','qtc-amt','qtc-note'],'cuotas':['qda-desc','qda-amt','qda-cuotas','qda-note']};
+  (limpiar[tipo]||[]).forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  // Mostrar banner temporal
+  let banner=document.getElementById('qa-otro-banner');
+  if(!banner){
+    banner=document.createElement('div');
+    banner.id='qa-otro-banner';
+    banner.style.cssText='position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);padding:14px 0 4px;display:flex;gap:10px;';
+    inner.appendChild(banner);
+  }
+  banner.innerHTML=`<button onclick="cerrarQuickAdd()" style="flex:1;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--muted2);font-size:14px;cursor:pointer;font-family:var(--sans)">No, listo</button>
+    <button onclick="otroGasto()" style="flex:2;padding:12px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--sans)">+ Cargar otro</button>`;
+  banner.style.display='flex';
+  setTimeout(()=>{ const first=document.querySelector('#qpanel-'+tipo+' input'); if(first)first.focus(); },100);
+}
+function otroGasto(){
+  const banner=document.getElementById('qa-otro-banner');
+  if(banner) banner.style.display='none';
 }
 
 // ─── EXPORT / IMPORT ───────────────────────────────────────────────────
