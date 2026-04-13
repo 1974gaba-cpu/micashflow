@@ -3326,6 +3326,8 @@ function cerrarQuickAdd(){
   ['qgd-desc','qgd-amt','qgd-note','qtc-desc','qtc-tar','qtc-amt','qtc-note','qda-desc','qda-tar','qda-amt','qda-cuotas','qda-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const banner=document.getElementById('qa-otro-banner');
   if(banner){ banner.style.display='none'; }
+  // Sync a Drive al cerrar (no durante la carga para evitar popup de Android)
+  driveSaveDebounced();
 }
 function setQuickTab(tab){
   _quickTab=tab;
@@ -3348,15 +3350,13 @@ function confirmarQuickGasto(tipo){
     const item={id:uid(),desc,medio,cur,amt,date:new Date().toISOString().slice(0,10),note};
     if(!state.gastos_directos[ym])state.gastos_directos[ym]=[];
     state.gastos_directos[ym].push(item);
-    saveState(); renderAll();
+    saveStateLocal(); renderAll();
     showToast('✓ Gasto directo guardado');
     // Ofrecer descuento
     const mn=medio.toLowerCase();
-    let abreDescuento=false;
     if(mn.includes('efectivo')||mn.includes('billetera')||mn.includes('digital')){
       const match=state.efectivo.filter(c=>c.cur===cur&&parseFloat(c.amt)>0);
-      if(match.length>0){_gdItem={desc,cur,amt:parseFloat(amt)||0};abreDescuento=true;
-        // Limpiar campos para posible otro gasto
+      if(match.length>0){_gdItem={desc,cur,amt:parseFloat(amt)||0};
         document.getElementById('qgd-desc').value='';
         document.getElementById('qgd-amt').value='';
         document.getElementById('qgd-note').value='';
@@ -3376,7 +3376,7 @@ function confirmarQuickGasto(tipo){
     const item={id:uid(),desc,tarjeta,cur,amt,date:new Date().toISOString().slice(0,10),note};
     if(!state.tarjetas[ymTarjeta])state.tarjetas[ymTarjeta]=[];
     state.tarjetas[ymTarjeta].push(item);
-    saveState(); renderAll();
+    saveStateLocal(); renderAll();
     showToast('✓ Guardado en '+mlabel(ymTarjeta));
     preguntarOtroGasto(tipo);
   } else if(tipo==='cuotas'){
@@ -3389,7 +3389,7 @@ function confirmarQuickGasto(tipo){
     const note=document.getElementById('qda-note').value.trim();
     const item={id:uid(),desc,tarjeta,cur,amt,cuotas_total:cuotas,inicio:ym,note};
     state.da_fijos.push(item);
-    saveState(); renderAll();
+    saveStateLocal(); renderAll();
     showToast('✓ Cuotas guardadas');
     preguntarOtroGasto(tipo);
   }
