@@ -733,7 +733,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 </div>
 
 <!-- MOBILE QUICK ADD MODAL -->
-<div id="quick-add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2001;align-items:flex-end;justify-content:center" onclick="void(0)">
+<div id="quick-add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2001;align-items:flex-end;justify-content:center">
   <div style="background:var(--surface);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <div style="font-size:16px;font-weight:700">Nuevo gasto</div>
@@ -756,7 +756,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
         <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Medio de pago</label><select id="qgd-medio" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"><option value="Efectivo">💵 Efectivo</option><option value="Billetera digital">📱 Billetera digital</option><option value="Transferencia">🏦 Transferencia</option></select></div>
         <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Nota (opcional)</label><input id="qgd-note" placeholder="Ej: almuerzo, regalo..." style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></div>
       </div>
-      <button onclick="confirmarQuickGasto('directo')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans)">✓ Guardar gasto</button>
+      <button onpointerdown="confirmarQuickGasto('directo')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans);touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none">✓ Guardar gasto</button>
     </div>
     <!-- Panel 1 Pago -->
     <div id="qpanel-1pago" style="display:none">
@@ -770,7 +770,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
         <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Mes del resumen <span style="color:var(--amber);font-size:9px">— ¿en qué mes lo pagás?</span></label><select id="qtc-mes" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></select></div>
         <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Nota (opcional)</label><input id="qtc-note" placeholder="" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></div>
       </div>
-      <button onclick="confirmarQuickGasto('1pago')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans)">✓ Guardar gasto</button>
+      <button onpointerdown="confirmarQuickGasto('1pago')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans);touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none">✓ Guardar gasto</button>
     </div>
     <!-- Panel Cuotas -->
     <div id="qpanel-cuotas" style="display:none">
@@ -784,7 +784,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
         <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Cantidad de cuotas</label><input id="qda-cuotas" type="number" placeholder="Ej: 6" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--mono);font-size:14px;outline:none;margin-top:4px"></div>
         <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Nota (opcional)</label><input id="qda-note" placeholder="" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></div>
       </div>
-      <button onclick="confirmarQuickGasto('cuotas')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans)">✓ Guardar gasto</button>
+      <button onpointerdown="confirmarQuickGasto('cuotas')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans);touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none">✓ Guardar gasto</button>
     </div>
   </div>
 </div>
@@ -3290,9 +3290,7 @@ function triggerMobileQuickAdd(){
   // Mostrar FAB siempre en mobile
   const fab=document.getElementById('fab-mobile');
   if(fab)fab.style.display='flex';
-  // Popup solo una vez por sesion
-  if(sessionStorage.getItem('mqa_shown'))return;
-  sessionStorage.setItem('mqa_shown','1');
+  // Mostrar popup cada vez que Drive conecta (no usar sessionStorage)
   setTimeout(()=>{ document.getElementById('mobile-popup').style.display='flex'; },600);
 }
 function cerrarMobilePopup(){document.getElementById('mobile-popup').style.display='none';}
