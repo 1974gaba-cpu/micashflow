@@ -18,6 +18,7 @@
   --r:10px;--rl:16px;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
+button,a,[onclick],[onpointerdown]{touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;}
 .app{display:flex;height:100vh;overflow:hidden;}
 .sidebar{width:220px;min-width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:24px 0;overflow-y:auto;}
@@ -756,7 +757,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
         <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Medio de pago</label><select id="qgd-medio" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"><option value="Efectivo">💵 Efectivo</option><option value="Billetera digital">📱 Billetera digital</option><option value="Transferencia">🏦 Transferencia</option></select></div>
         <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Nota (opcional)</label><input id="qgd-note" placeholder="Ej: almuerzo, regalo..." style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></div>
       </div>
-      <button onpointerdown="confirmarQuickGasto('directo')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans);touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none">✓ Guardar gasto</button>
+      <button onclick="confirmarQuickGasto('directo')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans);touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none">✓ Guardar gasto</button>
     </div>
     <!-- Panel 1 Pago -->
     <div id="qpanel-1pago" style="display:none">
@@ -770,7 +771,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
         <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Mes del resumen <span style="color:var(--amber);font-size:9px">— ¿en qué mes lo pagás?</span></label><select id="qtc-mes" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></select></div>
         <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Nota (opcional)</label><input id="qtc-note" placeholder="" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></div>
       </div>
-      <button onpointerdown="confirmarQuickGasto('1pago')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans);touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none">✓ Guardar gasto</button>
+      <button onclick="confirmarQuickGasto('1pago')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans);touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none">✓ Guardar gasto</button>
     </div>
     <!-- Panel Cuotas -->
     <div id="qpanel-cuotas" style="display:none">
@@ -784,13 +785,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
         <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Cantidad de cuotas</label><input id="qda-cuotas" type="number" placeholder="Ej: 6" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--mono);font-size:14px;outline:none;margin-top:4px"></div>
         <div><label style="font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Nota (opcional)</label><input id="qda-note" placeholder="" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;margin-top:4px"></div>
       </div>
-      <button onpointerdown="confirmarQuickGasto('cuotas')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans);touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none">✓ Guardar gasto</button>
+      <button onclick="confirmarQuickGasto('cuotas')" style="width:100%;margin-top:18px;padding:14px;background:var(--green);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans);touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none">✓ Guardar gasto</button>
     </div>
   </div>
 </div>
 
 <!-- FLOATING ACTION BUTTON (mobile only) -->
-<button id="fab-mobile" onclick="abrirQuickAdd()" title="Cargar gasto rápido" style="display:none;position:fixed;bottom:24px;right:20px;width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;color:#fff;font-size:26px;cursor:pointer;z-index:1500;box-shadow:0 4px 16px rgba(0,0,0,.4);align-items:center;justify-content:center">＋</button>
+<button id="fab-mobile" onclick="abrirQuickAdd()" title="Cargar gasto rápido" style="display:none;position:fixed;bottom:24px;right:20px;width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;color:#fff;font-size:26px;cursor:pointer;z-index:1500;box-shadow:0 4px 16px rgba(0,0,0,.4);align-items:center;justify-content:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none">＋</button>
 
 
 <script>
