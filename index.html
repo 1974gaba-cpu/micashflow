@@ -733,7 +733,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 </div>
 
 <!-- MOBILE QUICK ADD MODAL -->
-<div id="quick-add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2001;align-items:flex-end;justify-content:center">
+<div id="quick-add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2001;align-items:flex-end;justify-content:center" onclick="void(0)">
   <div style="background:var(--surface);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <div style="font-size:16px;font-weight:700">Nuevo gasto</div>
@@ -3326,8 +3326,6 @@ function cerrarQuickAdd(){
   ['qgd-desc','qgd-amt','qgd-note','qtc-desc','qtc-tar','qtc-amt','qtc-note','qda-desc','qda-tar','qda-amt','qda-cuotas','qda-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const banner=document.getElementById('qa-otro-banner');
   if(banner){ banner.style.display='none'; }
-  // Sync a Drive al cerrar (no durante la carga para evitar popup de Android)
-  driveSaveDebounced();
 }
 function setQuickTab(tab){
   _quickTab=tab;
