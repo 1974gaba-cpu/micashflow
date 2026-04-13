@@ -163,7 +163,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 .btn-seg-upd{background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:6px 13px;font-size:11px;font-family:var(--mono);color:var(--muted2);cursor:pointer;transition:.15s;}
 .btn-seg-upd:hover{border-color:var(--accent);color:var(--accent);}
 ::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
-@media(max-width:700px){.sidebar{display:none;}.sg{grid-template-columns:1fr;}.seg-data-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:700px){.sidebar{display:none;}.sg{grid-template-columns:1fr;}.seg-data-grid{grid-template-columns:1fr 1fr;}#fab-mobile{display:flex!important;}}
 </style>
 </head>
 <body>
@@ -790,7 +790,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 </div>
 
 <!-- FLOATING ACTION BUTTON (mobile only) -->
-<button id="fab-mobile" onclick="abrirQuickAdd()" title="Cargar gasto rápido" style="display:none;position:fixed;bottom:24px;right:20px;width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;color:#fff;font-size:26px;cursor:pointer;z-index:1500;box-shadow:0 4px 16px rgba(0,0,0,.4);align-items:center;justify-content:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none">＋</button>
+<button id="fab-mobile" onclick="abrirQuickAdd()" title="Cargar gasto rápido" style="position:fixed;bottom:24px;right:20px;width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;color:#fff;font-size:26px;cursor:pointer;z-index:1500;box-shadow:0 4px 16px rgba(0,0,0,.4);display:none;align-items:center;justify-content:center">＋</button>
 
 
 <script>
@@ -3479,7 +3479,6 @@ document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('tc-inp').value=state.fx;
   
   renderAll();
-  if(esMobile()){const fab=document.getElementById('fab-mobile');if(fab)fab.style.display='flex';}
   showSplash();
 });
 </script>
