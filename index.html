@@ -884,7 +884,7 @@ async function driveLoadOrCreate(){
           state._savedAt = data.savedAt || new Date().toISOString();
           lsSet('_savedAt', state._savedAt);
           lsSet('__drive_loaded', true); saveStateLocal(); renderAll();
-          setDriveStatus('✓ Sincronizado', '#2ecc71'); triggerMobileQuickAdd();
+          setDriveStatus('✓ Sincronizado', '#2ecc71');
           showToast(`☁ Datos cargados desde Drive (${loaded} secciones)`);
           return;
         }
@@ -924,7 +924,7 @@ async function driveLoadOrCreate(){
           state._savedAt = chosenData.savedAt || new Date().toISOString();
           lsSet('_savedAt', state._savedAt);
           lsSet('__drive_loaded', true); saveStateLocal(); renderAll();
-          setDriveStatus('✓ Sincronizado', '#2ecc71'); triggerMobileQuickAdd();
+          setDriveStatus('✓ Sincronizado', '#2ecc71');
           showToast(`☁ Datos cargados desde Drive (${loaded} secciones)`);
           return;
         }
@@ -976,7 +976,7 @@ async function driveRefresh(){
       state._savedAt = driveData.savedAt || new Date().toISOString();
       lsSet('_savedAt', state._savedAt);
       saveStateLocal(); renderAll();
-      setDriveStatus('✓ Sincronizado', '#2ecc71'); triggerMobileQuickAdd();
+      setDriveStatus('✓ Sincronizado', '#2ecc71');
       showToast(`☁ Datos traídos del Drive (${loaded} secciones)`);
     } else {
       showToast('⚠ Error al traer datos del Drive');
@@ -3287,11 +3287,8 @@ let _quickTab='directo';
 function esMobile(){return window.innerWidth<=768||/Mobi|Android/i.test(navigator.userAgent);}
 function triggerMobileQuickAdd(){
   if(!esMobile())return;
-  // Mostrar FAB siempre en mobile
   const fab=document.getElementById('fab-mobile');
   if(fab)fab.style.display='flex';
-  // Mostrar popup cada vez que Drive conecta (no usar sessionStorage)
-  setTimeout(()=>{ document.getElementById('mobile-popup').style.display='flex'; },600);
 }
 function cerrarMobilePopup(){document.getElementById('mobile-popup').style.display='none';}
 function abrirQuickAdd(){
