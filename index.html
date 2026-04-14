@@ -3325,13 +3325,15 @@ function renderObjetivo(){
       </div>
     </div>`:'<div style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:14px;padding:10px;background:var(--surface2);border-radius:var(--r)">Cerr\u00e1 meses para ver el tracker de seguimiento mensual.</div>'}
     <div style="border-top:1px solid var(--border2);padding-top:14px">
-      <button onclick="llamarClaude()" id="btn-claude-obj"
+      <button onclick="copiarPromptClaude()" id="btn-claude-obj"
         style="background:linear-gradient(135deg,#6d28d9,#7c3aed);color:#fff;border:none;border-radius:8px;padding:11px 22px;font-size:13px;font-family:var(--sans);font-weight:700;cursor:pointer;width:100%;transition:.15s;letter-spacing:.3px">
-        \ud83e\udd16 Pedir recomendaciones a Claude
+        \ud83e\udd16 Analizar con Claude
       </button>
-      <div id="claude-resp-wrap" style="display:none;margin-top:14px">
-        <div style="font-size:10px;font-family:var(--mono);color:#a78bfa;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">An\u00e1lisis de Claude</div>
-        <div id="claude-resp" style="background:#0d0d1a;border:1px solid #6d28d944;border-radius:var(--r);padding:16px;font-size:12px;color:var(--text);font-family:var(--mono);line-height:1.8;white-space:pre-wrap"></div>
+      <div style="margin-top:8px;font-size:10px;color:var(--muted);font-family:var(--mono);text-align:center;line-height:1.6">
+        Copia tu an\u00e1lisis completo \u2192 peg\u00e1lo en <a href="https://claude.ai" target="_blank" style="color:#a78bfa;text-decoration:none">claude.ai</a>
+      </div>
+      <div id="claude-copy-toast" style="display:none;margin-top:10px;background:#1a0f2e;border:1px solid #7c3aed;border-radius:var(--r);padding:12px 16px;font-size:11px;font-family:var(--mono);color:#a78bfa;text-align:center">
+        \u2705 Prompt copiado. Ab\u00e1 claude.ai y peg\u00e1lo con Ctrl+V.
       </div>
     </div>
     `:`<div style="font-size:12px;color:var(--muted);font-family:var(--mono);text-align:center;padding:16px">${!meta_usd?'Carg\u00e1 tu meta en USD':'Eleg\u00ed una fecha objetivo'} para ver el an\u00e1lisis completo.</div>`}
@@ -3354,29 +3356,23 @@ function saveObjetivo(){
   renderObjetivo();
 }
 
-async function llamarClaude(){
-  const btn=document.getElementById('btn-claude-obj');
-  const wrap=document.getElementById('claude-resp-wrap');
-  const resp=document.getElementById('claude-resp');
-  if(!btn||!wrap||!resp) return;
-  btn.disabled=true; btn.textContent='Consultando...';
-  wrap.style.display='block'; resp.textContent='Analizando...';
 
-  const ym=state.currentMonth, fx=state.fx;
+function copiarPromptClaude(){
+  const btn=document.getElementById('btn-claude-obj');
+  const toast=document.getElementById('claude-copy-toast');
+  const ym=state.currentMonth,fx=state.fx;
   const meta_usd=parseFloat(state.objetivo_meta_usd)||0;
   const rango=state.objetivo_rango_usd||{min:10,max:14};
   const infActual=getObjetivoInfActual();
-
   const invMes=getInversionesMes(ym);
   let inv_usd=0;
-  invMes.filter(r=>r.desc!=='Prevención Retiro').forEach(r=>inv_usd+=toUSD(parseFloat(r.val)||0,r.cur));
+  invMes.filter(r=>r.desc!=='Prevenci\u00f3n Retiro').forEach(r=>inv_usd+=toUSD(parseFloat(r.val)||0,r.cur));
   const{ef_ars,ef_usd}=getEfectivoMes(ym);
   const seguros=state.seguros_capitalizacion||[];
   let seg_usd=0,seg_ars=0;
   seguros.forEach(s=>{if(s.moneda_fondo==='USD')seg_usd+=parseFloat(s.fondo_saldo)||0;else seg_ars+=parseFloat(s.fondo_saldo)||0;});
   const seg_usd_equiv=seg_usd+seg_ars/fx;
   const patActual=inv_usd+ef_usd+ef_ars/fx+seg_usd_equiv;
-
   let cfUSD=0,cfARS=0,cfCur=nextYM(ym),cfMax=36;
   while(cfMax-->0){
     const pend=state.prestamos_out.filter(r=>prestamoCuotasEnMes(r,cfCur)>0&&!isCobrado('prestamos_out',r.id,cfCur)&&!prestamEnDuda('prestamos_out',r.id));
@@ -3393,62 +3389,76 @@ async function llamarClaude(){
   const patProy=patActual+cfUSD+cfARS/fx-(pUSD+pARS/fx);
   const falta=Math.max(0,meta_usd-patProy);
   const{ing_usd,ing_ars,gas_usd,gas_ars,neto_usd}=calcMonth(ym);
-
   const cierresKeys=Object.keys(state.cierres||{}).sort().slice(-6);
   let netoProm=0;
   if(cierresKeys.length>=2){
-    const pats=cierresKeys.map(k=>{const c=state.cierres[k];let inv=0;(c.inversiones||[]).filter(r=>r.desc!=='Prevención Retiro').forEach(r=>inv+=toUSD(parseFloat(r.val)||0,r.cur));return inv+(c.efectivo_usd||0)+(c.efectivo_ars||0)/(c.fx||fx);});
+    const pats=cierresKeys.map(k=>{const c=state.cierres[k];let inv=0;(c.inversiones||[]).filter(r=>r.desc!=='Prevenci\u00f3n Retiro').forEach(r=>inv+=toUSD(parseFloat(r.val)||0,r.cur));return inv+(c.efectivo_usd||0)+(c.efectivo_ars||0)/(c.fx||fx);});
     const d=[];for(let i=1;i<pats.length;i++)d.push(pats[i]-pats[i-1]);
     netoProm=d.reduce((a,b)=>a+b,0)/d.length;
   }
-
   const invDet=invMes.map(r=>`- ${r.desc} (${r.tipo}, ${r.broker}, liq:${r.liq}): ${r.cur} ${r.val}`).join('\n');
   const prestDet=(state.prestamos_out||[]).filter(r=>parseInt(r.cuotas)>0).map(r=>`- ${r.desc}: ${r.cur} ${r.amt}/cuota x ${r.cuotas} cuotas`).join('\n');
-
-  const prompt=`Soy Gabriel, 51 anios, argentino. Dame recomendaciones financieras concretas basadas en mis datos reales.
+  const fechaObj=state.objetivo_fecha||'';
+  let mesesRestantes=0;
+  if(fechaObj){const[fy,fm]=fechaObj.split('-').map(Number);const[cy,cm]=ym.split('-').map(Number);mesesRestantes=Math.max(0,(fy-cy)*12+(fm-cm));}
+  const prompt=
+`Soy Gabriel, 51 anios, argentino. Analiza mi situacion financiera real y dame recomendaciones concretas y priorizadas.
 
 PATRIMONIO HOY (${ym}): USD ${patActual.toFixed(2)}
-PATRIMONIO PROYECTADO (con cobros futuros comprometidos): USD ${patProy.toFixed(2)}
-Inversiones: USD ${inv_usd.toFixed(2)} | Seguros: USD ${seg_usd_equiv.toFixed(2)} | Efectivo: USD ${ef_usd} + ARS ${ef_ars.toFixed(0)}
-TC: $${fx} | Inflacion proyectada: ${infActual.val}%
+PATRIMONIO PROYECTADO (cobros futuros de prestamos ya colocados incluidos): USD ${patProy.toFixed(2)}
+- Inversiones: USD ${inv_usd.toFixed(2)}
+- Seguros capitalizables: USD ${seg_usd_equiv.toFixed(2)}
+- Efectivo: USD ${ef_usd} / ARS ${ef_ars.toFixed(0)} (aprox USD ${(ef_ars/fx).toFixed(2)})
+- TC USD/ARS: $${fx} | Inflacion proyectada: ${infActual.val}% anual
 
-INVERSIONES:
+INVERSIONES DETALLADAS:
 ${invDet}
 
 FLUJO MENSUAL:
-Ingresos USD ${ing_usd.toFixed(2)} + ARS ${ing_ars.toFixed(0)} | Gastos USD ${gas_usd.toFixed(2)} + ARS ${gas_ars.toFixed(0)}
-Neto aprox: USD ${neto_usd.toFixed(2)} | Crecimiento patrimonial promedio: USD ${netoProm.toFixed(2)}/mes
+- Ingresos: USD ${ing_usd.toFixed(2)} + ARS ${ing_ars.toFixed(0)} (aprox USD ${(ing_ars/fx).toFixed(2)})
+- Gastos: USD ${gas_usd.toFixed(2)} + ARS ${gas_ars.toFixed(0)} (aprox USD ${(gas_ars/fx).toFixed(2)})
+- Neto mensual: aprox USD ${neto_usd.toFixed(2)}
+- Crecimiento patrimonial promedio ultimos cierres: USD ${netoProm.toFixed(2)}/mes
 
-PRESTAMOS ACTIVOS:
-${prestDet||'Ninguno'}
+PRESTAMOS OTORGADOS ACTIVOS (generan rendimiento en USD/ARS):
+${prestDet||'Sin prestamos activos'}
 
-META: USD ${meta_usd.toFixed(2)} | Falta (desde proyectado): USD ${falta.toFixed(2)}
-Rendimiento objetivo: ${rango.min}-${rango.max}% USD/anio via prestamos privados + CEDEARs
-Benchmark: inflacion ${infActual.val}% + ${rango.min}% = ${infActual.val+rango.min}% anual minimo
+OBJETIVO PATRIMONIAL:
+- Meta: USD ${meta_usd.toFixed(2)} en ${mesesRestantes} meses (${mlabel(fechaObj)||'sin fecha definida'})
+- Falta desde patrimonio proyectado: USD ${falta.toFixed(2)}
+- Necesito crecer: USD ${mesesRestantes>0?(falta/mesesRestantes).toFixed(2):'?'}/mes
+- Rendimiento objetivo: ${rango.min}-${rango.max}% USD/anio via prestamos privados + CEDEARs
+- Benchmark minimo: inflacion ${infActual.val}% + ${rango.min}% USD = ${infActual.val+rango.min}% anual total
 
-CONTEXTO: Prestamos privados a gente de confianza. CEDEARs en Cocos y Balanz. Priorizo liquidez. Horizonte 10-15 anios independencia financiera.
+CONTEXTO IMPORTANTE:
+- Hago prestamos privados a personas de confianza con rendimiento ${rango.min}-${rango.max}% USD anual
+- CEDEARs y fondos en Cocos Capital y Balanz
+- Argentina: inflacion decreciente pero alta, riesgo sistemico, priorizo liquidez
+- Horizonte 10-15 anios para independencia financiera de trabajo en relacion de dependencia
 
-Responde directo con numeros, en orden:
-1. Mi ritmo actual llega a la meta? En cuanto tiempo?
-2. Que ajuste concreto mejoraria el ritmo mas rapido?
-3. Algo en el flujo mensual para optimizar?
-4. El benchmark ${rango.min}-${rango.max}% USD es alcanzable con mi mix?
-5. La meta necesita revision con inflacion ${infActual.val}%?`;
+Responde con recomendaciones concretas en este orden:
+1. Mi ritmo actual me lleva a la meta? En cuanto tiempo realista?
+2. Que ajuste concreto en inversiones o prestamos mejoraria el ritmo mas rapido?
+3. Hay algo en el flujo mensual donde optimizar?
+4. El benchmark ${rango.min}-${rango.max}% USD es alcanzable con mi mix actual?
+5. La meta USD necesita revisarse dado el contexto de inflacion ${infActual.val}%?
 
-  try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})
-    });
-    const d=await r.json();
-    if(d.error){resp.textContent='Error: '+d.error.message;return;}
-    resp.textContent=d.content?.map(b=>b.text||'').join('')||'Sin respuesta.';
-  }catch(e){resp.textContent='Error: '+e.message;}
-  btn.disabled=false;
-  btn.textContent='🤖 Pedir recomendaciones a Claude';
+Directo con numeros reales. Sin rodeos.`;
+
+  const ok=()=>{
+    if(toast){toast.style.display='block';setTimeout(()=>toast.style.display='none',6000);}
+    if(btn){btn.textContent='\u2705 Copiado!';setTimeout(()=>btn.textContent='\ud83e\udd16 Analizar con Claude',3000);}
+  };
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(prompt).then(ok).catch(()=>{fallbackCopy(prompt);ok();});
+  } else {fallbackCopy(prompt);ok();}
 }
-
+function fallbackCopy(text){
+  const ta=document.createElement('textarea');ta.value=text;
+  ta.style.cssText='position:fixed;top:0;left:0;opacity:0';
+  document.body.appendChild(ta);ta.select();
+  document.execCommand('copy');document.body.removeChild(ta);
+}
 
 // ─── HISTORIAL ─────────────────────────────────────────────────────────
 let hChart=null,hTab='neto';
