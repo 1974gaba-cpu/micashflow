@@ -1039,7 +1039,7 @@ let state={
   retiro_jubilacion:{saldo:2882166.65, fecha_snapshot:'2026-03-01', edad_cobro:65, prima_mensual_ars:76008, dia_debito:13},
   fx:1420,currentMonth:new Date().toISOString().slice(0,7)
 };
-const STATE_KEYS=['ingresos_fijos','ingresos_espo','gastos_fijos','da_fijos','tarjetas','gastos_directos','gf_pagos','gf_overrides','inversiones','efectivo','prestamos_out','prestamos_in','prestamos_cancelados','cobros','cierres','notas','seguros_capitalizacion','retiro_jubilacion','fx','currentMonth','tarjetas_abonadas'];
+const STATE_KEYS=['ingresos_fijos','ingresos_espo','gastos_fijos','da_fijos','tarjetas','gastos_directos','gf_pagos','gf_overrides','inversiones','efectivo','prestamos_out','prestamos_in','prestamos_cancelados','cobros','cierres','notas','seguros_capitalizacion','retiro_jubilacion','fx','currentMonth','tarjetas_abonadas','objetivo_meta_usd','objetivo_inflacion','objetivo_rango_usd'];
 function saveState(){ state._savedAt=new Date().toISOString(); STATE_KEYS.forEach(k=>lsSet(k,state[k])); lsSet('_savedAt',state._savedAt); driveSaveDebounced(); }
 
 // ─── DA HELPERS ────────────────────────────────────────────────────────
@@ -3103,7 +3103,279 @@ function renderResumen(){
       </div>
     </div>
     ${cobrosFuturos.length?`<div style="margin-top:18px"><div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">📅 Cobros futuros esperados</div><div class="card" style="padding:0;overflow:hidden">${cobrosFuturos.map((r,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;${i<cobrosFuturos.length-1?'border-bottom:1px solid var(--border2)':''}"><div style="font-family:var(--mono);font-size:12px;color:var(--muted2)">${mlabel(r.ym)}</div><div style="display:flex;gap:16px;font-family:var(--mono);font-size:12px">${r.usd>0?`<span style="color:var(--green)">USD ${fmtN(r.usd)}</span>`:''}${r.ars>0?`<span style="color:var(--text)">ARS ${fmtN(r.ars)}</span>`:''}</div></div>`).join('')}<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface2);border-top:2px solid var(--border)"><div style="font-size:11px;font-weight:700;color:var(--text);font-family:var(--mono);letter-spacing:.5px">TOTAL A COBRAR</div><div style="display:flex;gap:16px;font-family:var(--mono);font-size:12px;font-weight:700">${totalFutUSD>0?`<span style="color:var(--green)">USD ${fmtN(totalFutUSD)}</span>`:''}${totalFutARS>0?`<span style="color:var(--text)">ARS ${fmtN(totalFutARS)}</span>`:''}</div></div></div></div>`:''}
-    ${btnCerrar}`;
+    ${btnCerrar}
+    ${buildObjetivoHTML()}`;
+}
+
+// ─── OBJETIVO PATRIMONIAL ─────────────────────────────────────────────
+
+function getObjetivoInfActual(){
+  const ym=state.currentMonth;
+  const inf=state.objetivo_inflacion||{};
+  let cursor=ym;
+  for(let i=0;i<24;i++){
+    if(inf[cursor]!==undefined) return {ym:cursor,val:parseFloat(inf[cursor])};
+    cursor=prevYM(cursor);
+  }
+  return {ym:null,val:35};
+}
+
+function buildObjetivoHTML(){
+  const ym=state.currentMonth;
+  const fx=state.fx;
+  const meta_usd=parseFloat(state.objetivo_meta_usd)||0;
+  const rango=state.objetivo_rango_usd||{min:10,max:14};
+  const infActual=getObjetivoInfActual();
+  const infVal=infActual.val;
+
+  const infPrev=(()=>{
+    const inf=state.objetivo_inflacion||{};
+    let cursor=prevYM(infActual.ym||ym);
+    for(let i=0;i<24;i++){
+      if(inf[cursor]!==undefined) return parseFloat(inf[cursor]);
+      cursor=prevYM(cursor);
+    }
+    return null;
+  })();
+
+  const invMes=getInversionesMes(ym);
+  let inv_usd=0;
+  invMes.filter(r=>r.desc!=='Prevención Retiro').forEach(r=>inv_usd+=toUSD(parseFloat(r.val)||0,r.cur));
+  const{ef_ars,ef_usd}=getEfectivoMes(ym);
+  const seguros=state.seguros_capitalizacion||[];
+  let seg_usd=0,seg_ars=0;
+  seguros.forEach(s=>{if(s.moneda_fondo==='USD')seg_usd+=parseFloat(s.fondo_saldo)||0;else seg_ars+=parseFloat(s.fondo_saldo)||0;});
+  const seg_usd_equiv=seg_usd+seg_ars/fx;
+  const patActual=inv_usd+ef_usd+ef_ars/fx+seg_usd_equiv;
+  const falta_usd=Math.max(0,meta_usd-patActual);
+  const falta_ars=falta_usd*fx;
+  const progreso=meta_usd>0?Math.min(100,patActual/meta_usd*100):0;
+
+  const cierresKeys=Object.keys(state.cierres||{}).sort().slice(-6);
+  let netoProm=0;
+  if(cierresKeys.length>=2){
+    const pats=cierresKeys.map(k=>{
+      const c=state.cierres[k];let inv=0;
+      (c.inversiones||[]).filter(r=>r.desc!=='Prevención Retiro').forEach(r=>inv+=toUSD(parseFloat(r.val)||0,r.cur));
+      return inv+(c.efectivo_usd||0)+(c.efectivo_ars||0)/(c.fx||fx);
+    });
+    const deltas=[];
+    for(let i=1;i<pats.length;i++)deltas.push(pats[i]-pats[i-1]);
+    netoProm=deltas.reduce((a,b)=>a+b,0)/deltas.length;
+  }
+  const mesesRitmo=netoProm>0?Math.ceil(falta_usd/netoProm):null;
+
+  const calcMesesComp=(rate)=>{
+    if(rate<=0||patActual<=0||meta_usd<=patActual)return 0;
+    const monthly=Math.pow(1+rate/100,1/12)-1;
+    return Math.ceil(Math.log(meta_usd/patActual)/Math.log(1+monthly));
+  };
+  const mesesMin=calcMesesComp(rango.min);
+  const mesesMax=calcMesesComp(rango.max);
+
+  const difInf=infPrev!==null?infVal-infPrev:0;
+  const avisoInflacion=(infPrev!==null&&Math.abs(difInf)>=3)?`
+    <div style="background:#1a1200;border:1px solid var(--amber);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;font-size:11px;font-family:var(--mono);color:var(--amber);line-height:1.6">
+      \u26a0 La inflaci\u00f3n proyectada cambi\u00f3 de <strong>${fmtN(infPrev)}%</strong> a <strong>${fmtN(infVal)}%</strong> (${difInf>0?'+':''}${fmtN(difInf)} puntos).
+      ${difInf<0?`La meta en ARS baj\u00f3 \u2014 no tiene sentido esforzarse por esos ${fmtN(Math.abs(difInf))} puntos. Revis\u00e1 si la meta en USD sigue siendo correcta.`:`La presi\u00f3n inflacionaria aument\u00f3 \u2014 tu benchmark m\u00ednimo sube a ${fmtN(infVal+rango.min)}% anual.`}
+    </div>`:'' ;
+
+  const meta_ars=meta_usd*fx;
+  const benchmark_min=infVal+rango.min;
+  const benchmark_max=infVal+rango.max;
+
+  return `
+  <div style="margin-top:20px">
+    <div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">\ud83c\udfaf Objetivo patrimonial</div>
+    <div class="card">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px;letter-spacing:.5px">META EN USD</div>
+          <input id="obj-meta-usd" type="number" value="${meta_usd||''}" placeholder="ej: 21800"
+            style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-family:var(--mono);font-size:13px;color:var(--text);width:100%;box-sizing:border-box"
+            onchange="saveObjetivo()">
+          ${meta_usd>0?`<div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:3px">\u2248 ARS ${fmtN(meta_ars)} al TC ${fmtN(fx)}</div>`:''}
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px;letter-spacing:.5px">INFLACI\u00d3N PROYECTADA ${ym.slice(0,4)} (%)</div>
+          <input id="obj-inf" type="number" value="${infVal||''}" placeholder="ej: 35"
+            style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-family:var(--mono);font-size:13px;color:var(--text);width:100%;box-sizing:border-box"
+            onchange="saveObjetivo()">
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:3px">Aplica desde este mes en adelante</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px;letter-spacing:.5px">RENDIMIENTO USD M\u00cdN. (%/a\u00f1o)</div>
+          <input id="obj-rango-min" type="number" value="${rango.min}"
+            style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-family:var(--mono);font-size:13px;color:var(--text);width:100%;box-sizing:border-box"
+            onchange="saveObjetivo()">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px;letter-spacing:.5px">RENDIMIENTO USD M\u00c1X. (%/a\u00f1o)</div>
+          <input id="obj-rango-max" type="number" value="${rango.max}"
+            style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-family:var(--mono);font-size:13px;color:var(--text);width:100%;box-sizing:border-box"
+            onchange="saveObjetivo()">
+        </div>
+      </div>
+      ${avisoInflacion}
+      ${meta_usd>0?`
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:11px;font-family:var(--mono);color:var(--muted2)">Progreso hacia la meta</span>
+          <span style="font-size:13px;font-family:var(--mono);font-weight:700;color:var(--accent)">${fmtN(progreso)}%</span>
+        </div>
+        <div style="background:var(--surface2);border-radius:999px;height:10px;overflow:hidden;border:1px solid var(--border)">
+          <div style="background:linear-gradient(90deg,#3b82f6,#60a5fa);width:${progreso}%;height:100%;border-radius:999px;transition:width .4s ease"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px">
+          <span style="font-size:10px;font-family:var(--mono);color:var(--muted)">USD ${fmtN(patActual)} actual</span>
+          <span style="font-size:10px;font-family:var(--mono);color:var(--muted)">USD ${fmtN(meta_usd)} meta</span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div style="background:#0a1628;border:1px solid var(--blue);border-radius:var(--r);padding:12px">
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:.5px">PATRIMONIO ACTUAL</div>
+          <div style="font-size:18px;font-family:var(--mono);font-weight:700;color:#60a5fa;margin-top:4px">USD ${fmtN(patActual)}</div>
+        </div>
+        <div style="background:#1a1200;border:1px solid var(--amber);border-radius:var(--r);padding:12px">
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:.5px">FALTA ALCANZAR</div>
+          <div style="font-size:18px;font-family:var(--mono);font-weight:700;color:var(--amber);margin-top:4px">USD ${fmtN(falta_usd)}</div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:2px">\u2248 ARS ${fmtN(falta_ars)}</div>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--border2);padding-top:12px;display:flex;flex-direction:column;gap:5px;margin-bottom:14px">
+        ${netoProm>0?`<div class="brow"><span class="blabel">Ritmo mensual promedio (\u00faltimos cierres)</span><span class="bval" style="color:${netoProm>=0?'var(--green)':'var(--red)'}">USD ${fmtN(netoProm)}/mes</span></div>`:''}
+        ${mesesRitmo?`<div class="brow"><span class="blabel">Estimaci\u00f3n al ritmo actual</span><span class="bval">~${mesesRitmo} meses <span style="color:var(--muted);font-size:10px">(${(mesesRitmo/12).toFixed(1)} a\u00f1os)</span></span></div>`:'<div class="brow"><span class="blabel" style="color:var(--muted)">Cerrá meses para calcular el ritmo</span><span class="bval">\u2014</span></div>'}
+        <div class="brow"><span class="blabel">Con ${rango.min}% USD/a\u00f1o (m\u00ednimo)</span><span class="bval" style="color:var(--green)">~${mesesMin} meses <span style="color:var(--muted);font-size:10px">(${(mesesMin/12).toFixed(1)} a\u00f1os)</span></span></div>
+        <div class="brow"><span class="blabel">Con ${rango.max}% USD/a\u00f1o (m\u00e1ximo)</span><span class="bval" style="color:var(--green)">~${mesesMax} meses <span style="color:var(--muted);font-size:10px">(${(mesesMax/12).toFixed(1)} a\u00f1os)</span></span></div>
+        <div class="brow" style="border-top:1px solid var(--border2);padding-top:8px;margin-top:4px">
+          <span class="blabel" style="color:var(--muted2)">Benchmark (inflaci\u00f3n + rango USD)</span>
+          <span class="bval" style="color:var(--muted2)">${fmtN(benchmark_min)}% \u2014 ${fmtN(benchmark_max)}% anual</span>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--border2);padding-top:14px">
+        <button onclick="llamarClaude()" id="btn-claude-obj"
+          style="background:linear-gradient(135deg,#6d28d9,#7c3aed);color:#fff;border:none;border-radius:8px;padding:11px 22px;font-size:13px;font-family:var(--sans);font-weight:700;cursor:pointer;width:100%;transition:.15s;letter-spacing:.3px">
+          \ud83e\udd16 Pedir recomendaciones a Claude
+        </button>
+        <div id="claude-resp-wrap" style="display:none;margin-top:14px">
+          <div style="font-size:10px;font-family:var(--mono);color:#a78bfa;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">An\u00e1lisis de Claude</div>
+          <div id="claude-resp" style="background:#0d0d1a;border:1px solid #6d28d944;border-radius:var(--r);padding:16px;font-size:12px;color:var(--text);font-family:var(--mono);line-height:1.8;white-space:pre-wrap"></div>
+        </div>
+      </div>
+      `:`<div style="font-size:12px;color:var(--muted);font-family:var(--mono);text-align:center;padding:12px">Carg\u00e1 tu meta en USD para ver el an\u00e1lisis</div>`}
+    </div>
+  </div>`;
+}
+
+function saveObjetivo(){
+  const ym=state.currentMonth;
+  const metaUSD=parseFloat(document.getElementById('obj-meta-usd')?.value)||0;
+  const inf=parseFloat(document.getElementById('obj-inf')?.value)||0;
+  const rangoMin=parseFloat(document.getElementById('obj-rango-min')?.value)||10;
+  const rangoMax=parseFloat(document.getElementById('obj-rango-max')?.value)||14;
+  if(metaUSD>0) state.objetivo_meta_usd=metaUSD;
+  if(!state.objetivo_inflacion) state.objetivo_inflacion={};
+  if(inf>0) state.objetivo_inflacion[ym]=inf;
+  state.objetivo_rango_usd={min:rangoMin,max:rangoMax};
+  saveState();
+  renderResumen();
+}
+
+async function llamarClaude(){
+  const btn=document.getElementById('btn-claude-obj');
+  const wrap=document.getElementById('claude-resp-wrap');
+  const resp=document.getElementById('claude-resp');
+  if(!btn||!wrap||!resp) return;
+  btn.disabled=true;
+  btn.textContent='\u23f3 Consultando...';
+  wrap.style.display='block';
+  resp.textContent='Analizando tu situaci\u00f3n financiera...';
+
+  const ym=state.currentMonth; const fx=state.fx;
+  const meta_usd=parseFloat(state.objetivo_meta_usd)||0;
+  const rango=state.objetivo_rango_usd||{min:10,max:14};
+  const infActual=getObjetivoInfActual();
+
+  const invMes=getInversionesMes(ym);
+  let inv_usd=0;
+  invMes.filter(r=>r.desc!=='Prevención Retiro').forEach(r=>inv_usd+=toUSD(parseFloat(r.val)||0,r.cur));
+  const{ef_ars,ef_usd}=getEfectivoMes(ym);
+  const seguros=state.seguros_capitalizacion||[];
+  let seg_usd=0,seg_ars=0;
+  seguros.forEach(s=>{if(s.moneda_fondo==='USD')seg_usd+=parseFloat(s.fondo_saldo)||0;else seg_ars+=parseFloat(s.fondo_saldo)||0;});
+  const seg_usd_equiv=seg_usd+seg_ars/fx;
+  const patActual=inv_usd+ef_usd+ef_ars/fx+seg_usd_equiv;
+  const falta_usd=Math.max(0,meta_usd-patActual);
+  const{ing_usd,ing_ars,gas_usd,gas_ars,neto_usd}=calcMonth(ym);
+
+  const cierresKeys=Object.keys(state.cierres||{}).sort().slice(-6);
+  let netoProm=0;
+  if(cierresKeys.length>=2){
+    const pats=cierresKeys.map(k=>{const c=state.cierres[k];let inv=0;(c.inversiones||[]).filter(r=>r.desc!=='Prevención Retiro').forEach(r=>inv+=toUSD(parseFloat(r.val)||0,r.cur));return inv+(c.efectivo_usd||0)+(c.efectivo_ars||0)/(c.fx||fx);});
+    const deltas=[];for(let i=1;i<pats.length;i++)deltas.push(pats[i]-pats[i-1]);
+    netoProm=deltas.reduce((a,b)=>a+b,0)/deltas.length;
+  }
+
+  const invDetalle=invMes.map(r=>`- ${r.desc} (${r.tipo}, ${r.broker}, liq:${r.liq}): ${r.cur} ${r.val}`).join('\n');
+  const prestDetalle=(state.prestamos_out||[]).filter(r=>parseInt(r.cuotas)>0).map(r=>`- ${r.desc}: ${r.cur} ${r.amt}/cuota \u00d7 ${r.cuotas} cuotas restantes`).join('\n');
+
+  const prompt=`Soy Gabriel, 51 a\u00f1os, argentino. Analiz\u00e1 mi situaci\u00f3n financiera real y dame recomendaciones concretas y priorizadas.
+
+PATRIMONIO ACTUAL (${ym}) \u2014 USD ${patActual.toFixed(2)}
+- Inversiones: USD ${inv_usd.toFixed(2)}
+- Seguros capitalizables: USD ${seg_usd_equiv.toFixed(2)}
+- Efectivo USD: ${ef_usd} / ARS: ${ef_ars.toFixed(0)} (\u2248 USD ${(ef_ars/fx).toFixed(2)})
+- TC USD/ARS: $${fx}
+- Inflaci\u00f3n proyectada: ${infActual.val}% anual
+
+INVERSIONES DETALLADAS:
+${invDetalle}
+
+FLUJO MENSUAL:
+- Ingresos: USD ${ing_usd.toFixed(2)} + ARS ${ing_ars.toFixed(0)} (\u2248 USD ${(ing_ars/fx).toFixed(2)})
+- Gastos: USD ${gas_usd.toFixed(2)} + ARS ${gas_ars.toFixed(0)} (\u2248 USD ${(gas_ars/fx).toFixed(2)})
+- Neto mensual: \u2248 USD ${neto_usd.toFixed(2)}
+- Ritmo de crecimiento patrimonial promedio: USD ${netoProm.toFixed(2)}/mes
+
+PR\u00c9STAMOS OTORGADOS ACTIVOS (generan rendimiento):
+${prestDetalle||'Sin pr\u00e9stamos activos'}
+
+OBJETIVO:
+- Meta: USD ${meta_usd.toFixed(2)}
+- Falta: USD ${falta_usd.toFixed(2)} (${(falta_usd/meta_usd*100).toFixed(1)}% de la meta)
+- Rendimiento objetivo USD: ${rango.min}% a ${rango.max}% anual (v\u00eda pr\u00e9stamos privados + CEDEARs)
+- Benchmark m\u00ednimo: inflaci\u00f3n ${infActual.val}% + ${rango.min}% USD = ${infActual.val+rango.min}% anual total
+
+CONTEXTO IMPORTANTE:
+- Hago pr\u00e9stamos privados a personas de confianza que me dan un rendimiento del ${rango.min}-${rango.max}% en USD anual
+- Tengo CEDEARs y fondos en Cocos Capital y Balanz
+- Argentina: inflaci\u00f3n decreciente pero alta, riesgo sist\u00e9mico, priorizo liquidez
+- Horizonte 10-15 a\u00f1os para independencia financiera de mi trabajo en relaci\u00f3n de dependencia
+
+RESPOND\u00c9 con recomendaciones cortas y concretas en este orden:
+1. \u00bfMi ritmo actual me lleva a la meta? \u00bfEn cu\u00e1nto tiempo realista?
+2. \u00bfQu\u00e9 ajuste concreto en inversiones o pr\u00e9stamos mejorar\u00eda el ritmo?
+3. \u00bfHay algo en el flujo mensual donde optimizar?
+4. \u00bfEl benchmark ${rango.min}-${rango.max}% USD es alcanzable con mi mix actual?
+5. \u00bfLa meta USD necesita revisarse dado el contexto de inflaci\u00f3n ${infActual.val}%?
+
+Directo y espec\u00edfico. Sin rodeos. Us\u00e1 los n\u00fameros reales.`;
+
+  try{
+    const response=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})
+    });
+    const data=await response.json();
+    resp.textContent=data.content?.map(b=>b.text||'').join('')||'Sin respuesta.';
+  }catch(e){
+    resp.textContent='Error al consultar Claude. Intent\u00e1 de nuevo.';
+  }
+  btn.disabled=false;
+  btn.textContent='\ud83e\udd16 Pedir recomendaciones a Claude';
 }
 
 // ─── HISTORIAL ─────────────────────────────────────────────────────────
