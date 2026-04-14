@@ -3324,6 +3324,8 @@ function renderObjetivo(){
         </table>
       </div>
     </div>`:'<div style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:14px;padding:10px;background:var(--surface2);border-radius:var(--r)">Cerr\u00e1 meses para ver el tracker de seguimiento mensual.</div>'}
+
+    `:`<div style="font-size:12px;color:var(--muted);font-family:var(--mono);text-align:center;padding:16px">${!meta_usd?'Carg\u00e1 tu meta en USD':'Eleg\u00ed una fecha objetivo'} para ver el an\u00e1lisis completo.</div>`}
   </div>`;
 }
 
@@ -3341,8 +3343,6 @@ function saveObjetivo(){
   if(fecha) state.objetivo_fecha=fecha;
   saveState();
   renderObjetivo();
-}
-
 }
 
 
