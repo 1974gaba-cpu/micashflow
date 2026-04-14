@@ -3354,6 +3354,102 @@ function saveObjetivo(){
   renderObjetivo();
 }
 
+async function llamarClaude(){
+  const btn=document.getElementById('btn-claude-obj');
+  const wrap=document.getElementById('claude-resp-wrap');
+  const resp=document.getElementById('claude-resp');
+  if(!btn||!wrap||!resp) return;
+  btn.disabled=true; btn.textContent='Consultando...';
+  wrap.style.display='block'; resp.textContent='Analizando...';
+
+  const ym=state.currentMonth, fx=state.fx;
+  const meta_usd=parseFloat(state.objetivo_meta_usd)||0;
+  const rango=state.objetivo_rango_usd||{min:10,max:14};
+  const infActual=getObjetivoInfActual();
+
+  const invMes=getInversionesMes(ym);
+  let inv_usd=0;
+  invMes.filter(r=>r.desc!=='Prevención Retiro').forEach(r=>inv_usd+=toUSD(parseFloat(r.val)||0,r.cur));
+  const{ef_ars,ef_usd}=getEfectivoMes(ym);
+  const seguros=state.seguros_capitalizacion||[];
+  let seg_usd=0,seg_ars=0;
+  seguros.forEach(s=>{if(s.moneda_fondo==='USD')seg_usd+=parseFloat(s.fondo_saldo)||0;else seg_ars+=parseFloat(s.fondo_saldo)||0;});
+  const seg_usd_equiv=seg_usd+seg_ars/fx;
+  const patActual=inv_usd+ef_usd+ef_ars/fx+seg_usd_equiv;
+
+  let cfUSD=0,cfARS=0,cfCur=nextYM(ym),cfMax=36;
+  while(cfMax-->0){
+    const pend=state.prestamos_out.filter(r=>prestamoCuotasEnMes(r,cfCur)>0&&!isCobrado('prestamos_out',r.id,cfCur)&&!prestamEnDuda('prestamos_out',r.id));
+    if(!pend.length)break;
+    pend.filter(r=>r.cur==='USD').forEach(r=>cfUSD+=parseFloat(r.amt)||0);
+    pend.filter(r=>r.cur==='ARS').forEach(r=>cfARS+=parseFloat(r.amt)||0);
+    cfCur=nextYM(cfCur);
+  }
+  let pUSD=0,pARS=0;
+  (state.prestamos_in||[]).forEach(r=>{
+    if(r.capital&&r.fecha_inicio){const c=calcCancelacionPI(r,ym)||0;if(c>0)r.cur==='USD'?pUSD+=c:pARS+=c;}
+    else{const c=parseInt(r.cuotas)||0;if(c>0){const t=(parseFloat(r.amt)||0)*c;r.cur==='USD'?pUSD+=t:pARS+=t;}}
+  });
+  const patProy=patActual+cfUSD+cfARS/fx-(pUSD+pARS/fx);
+  const falta=Math.max(0,meta_usd-patProy);
+  const{ing_usd,ing_ars,gas_usd,gas_ars,neto_usd}=calcMonth(ym);
+
+  const cierresKeys=Object.keys(state.cierres||{}).sort().slice(-6);
+  let netoProm=0;
+  if(cierresKeys.length>=2){
+    const pats=cierresKeys.map(k=>{const c=state.cierres[k];let inv=0;(c.inversiones||[]).filter(r=>r.desc!=='Prevención Retiro').forEach(r=>inv+=toUSD(parseFloat(r.val)||0,r.cur));return inv+(c.efectivo_usd||0)+(c.efectivo_ars||0)/(c.fx||fx);});
+    const d=[];for(let i=1;i<pats.length;i++)d.push(pats[i]-pats[i-1]);
+    netoProm=d.reduce((a,b)=>a+b,0)/d.length;
+  }
+
+  const invDet=invMes.map(r=>`- ${r.desc} (${r.tipo}, ${r.broker}, liq:${r.liq}): ${r.cur} ${r.val}`).join('\n');
+  const prestDet=(state.prestamos_out||[]).filter(r=>parseInt(r.cuotas)>0).map(r=>`- ${r.desc}: ${r.cur} ${r.amt}/cuota x ${r.cuotas} cuotas`).join('\n');
+
+  const prompt=`Soy Gabriel, 51 anios, argentino. Dame recomendaciones financieras concretas basadas en mis datos reales.
+
+PATRIMONIO HOY (${ym}): USD ${patActual.toFixed(2)}
+PATRIMONIO PROYECTADO (con cobros futuros comprometidos): USD ${patProy.toFixed(2)}
+Inversiones: USD ${inv_usd.toFixed(2)} | Seguros: USD ${seg_usd_equiv.toFixed(2)} | Efectivo: USD ${ef_usd} + ARS ${ef_ars.toFixed(0)}
+TC: $${fx} | Inflacion proyectada: ${infActual.val}%
+
+INVERSIONES:
+${invDet}
+
+FLUJO MENSUAL:
+Ingresos USD ${ing_usd.toFixed(2)} + ARS ${ing_ars.toFixed(0)} | Gastos USD ${gas_usd.toFixed(2)} + ARS ${gas_ars.toFixed(0)}
+Neto aprox: USD ${neto_usd.toFixed(2)} | Crecimiento patrimonial promedio: USD ${netoProm.toFixed(2)}/mes
+
+PRESTAMOS ACTIVOS:
+${prestDet||'Ninguno'}
+
+META: USD ${meta_usd.toFixed(2)} | Falta (desde proyectado): USD ${falta.toFixed(2)}
+Rendimiento objetivo: ${rango.min}-${rango.max}% USD/anio via prestamos privados + CEDEARs
+Benchmark: inflacion ${infActual.val}% + ${rango.min}% = ${infActual.val+rango.min}% anual minimo
+
+CONTEXTO: Prestamos privados a gente de confianza. CEDEARs en Cocos y Balanz. Priorizo liquidez. Horizonte 10-15 anios independencia financiera.
+
+Responde directo con numeros, en orden:
+1. Mi ritmo actual llega a la meta? En cuanto tiempo?
+2. Que ajuste concreto mejoraria el ritmo mas rapido?
+3. Algo en el flujo mensual para optimizar?
+4. El benchmark ${rango.min}-${rango.max}% USD es alcanzable con mi mix?
+5. La meta necesita revision con inflacion ${infActual.val}%?`;
+
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})
+    });
+    const d=await r.json();
+    if(d.error){resp.textContent='Error: '+d.error.message;return;}
+    resp.textContent=d.content?.map(b=>b.text||'').join('')||'Sin respuesta.';
+  }catch(e){resp.textContent='Error: '+e.message;}
+  btn.disabled=false;
+  btn.textContent='🤖 Pedir recomendaciones a Claude';
+}
+
+
 // ─── HISTORIAL ─────────────────────────────────────────────────────────
 let hChart=null,hTab='neto';
 function getLast12(){const ms=[];const[cy,cm]=state.currentMonth.split('-').map(Number);for(let i=11;i>=0;i--){const d=new Date(cy,cm-1-i,1);ms.push(d.toISOString().slice(0,7));}return ms;}
