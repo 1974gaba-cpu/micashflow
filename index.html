@@ -2069,8 +2069,20 @@ function renderInversiones(){
         const color=diffUSD>=0?'var(--green)':'var(--red)';
         const signo=diffUSD>=0?'+':'';
         const pppBadge=nCompras>1?`<span style="font-size:9px;font-family:var(--mono);color:var(--amber);background:var(--amber-dim);padding:1px 5px;border-radius:3px;margin-right:4px">PPP·${nCompras}c</span>`:'';
+        let rendDiarioHtml='';
+        if(r.fecha_inicio&&valIni>0&&valAct>0){
+          const inicio=new Date(r.fecha_inicio+'T12:00:00');
+          const hoy=new Date();
+          const dias=Math.max(1,Math.round((hoy-inicio)/(1000*60*60*24)));
+          const rendDiario=(Math.pow(valAct/valIni,1/dias)-1)*100;
+          const rendAnual=(Math.pow(1+rendDiario/100,365)-1)*100;
+          const dColor=rendDiario>=0?'var(--green)':'var(--red)';
+          const dSigno=rendDiario>=0?'+':'';
+          rendDiarioHtml=`<div style="font-size:9px;font-family:var(--mono);color:${dColor};margin-top:1px">${dSigno}${fmtN(rendDiario)}%/día · ${dSigno}${fmtN(rendAnual)}% anual</div>`;
+        }
         perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:3px">${pppBadge}Invertido: USD ${fmtN(valIni)}</div>`+
-                 `<div style="font-size:10px;font-family:var(--mono);color:${color}">${signo}USD ${fmtN(Math.abs(diffUSD))} (${signo}${fmtN(pct)}%)</div>`;
+                 `<div style="font-size:10px;font-family:var(--mono);color:${color}">${signo}USD ${fmtN(Math.abs(diffUSD))} (${signo}${fmtN(pct)}%)</div>`+
+                 rendDiarioHtml;
       } else if(nCompras>1){
         perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--amber);margin-top:2px"><span style="background:var(--amber-dim);padding:1px 5px;border-radius:3px">PPP · ${nCompras} compras</span></div>`;
       }
