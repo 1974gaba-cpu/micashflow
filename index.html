@@ -1280,10 +1280,14 @@ function addInversion(){
       if(nuevoValIniTotal>0) existente.val_inicial=String(nuevoValIniTotal);
       if(fechaFinal) existente.fecha_inicio=fechaFinal;
       existente.num_compras=((parseInt(existente.num_compras)||1)+1);
+      // Guardar en compras[] — migrar primero si no tiene
+      migrateCompras(existente);
+      if(valIniNuevo>0&&fechaIniNuevo) existente.compras.push({fecha:fechaIniNuevo,monto:valIniNuevo});
     }
   } else {
     checkDriveBeforeEdit();
-    state.inversiones.push({id:uid(),desc,broker,tipo:document.getElementById('inv-tipo').value,cur,val:String(valNuevo),val_inicial:valIniNuevo?String(valIniNuevo):'',fecha_inicio:fechaIniNuevo,liq:document.getElementById('inv-liq').value,note:document.getElementById('inv-note').value.trim()});
+    const comprasNueva=(valIniNuevo>0&&fechaIniNuevo)?[{fecha:fechaIniNuevo,monto:valIniNuevo}]:[];
+    state.inversiones.push({id:uid(),desc,broker,tipo:document.getElementById('inv-tipo').value,cur,val:String(valNuevo),val_inicial:valIniNuevo?String(valIniNuevo):'',fecha_inicio:fechaIniNuevo,liq:document.getElementById('inv-liq').value,note:document.getElementById('inv-note').value.trim(),compras:comprasNueva});
   }
   saveState();
   ['inv-desc','inv-broker','inv-val','inv-val-ini','inv-fecha-ini','inv-note'].forEach(id=>document.getElementById(id).value='');
@@ -1305,6 +1309,9 @@ function fusionarDuplicados(broker){
       const iniR=parseFloat(r.val_inicial)||0;
       base.val=String(valBase+valR);
       if(iniBase||iniR) base.val_inicial=String(iniBase+iniR);
+      // Fusionar compras[]
+      migrateCompras(base); migrateCompras(r);
+      base.compras=[...base.compras,...r.compras];
       // Fecha más antigua
       if(r.fecha_inicio&&(!base.fecha_inicio||r.fecha_inicio<base.fecha_inicio)) base.fecha_inicio=r.fecha_inicio;
       base.num_compras=((parseInt(base.num_compras)||1)+(parseInt(r.num_compras)||1));
@@ -2036,6 +2043,38 @@ function renderPrestamosIn(){
 }
 
 // ─── RENDER INVERSIONES ────────────────────────────────────────────────
+function calcTWR(compras, valAct, cur){
+  if(!compras||compras.length===0) return null;
+  const hoy=new Date();
+  let totalInv=0, diasPond=0;
+  compras.forEach(c=>{
+    const m=parseFloat(c.monto)||0;
+    const f=new Date(c.fecha+'T12:00:00');
+    const d=Math.max(1,Math.round((hoy-f)/(1000*60*60*24)));
+    totalInv+=m; diasPond+=m*d;
+  });
+  if(totalInv<=0) return null;
+  diasPond=diasPond/totalInv;
+  if(diasPond<15) return null;
+  const valActUSD=toUSD(valAct,cur);
+  const valIniUSD=toUSD(totalInv,cur);
+  if(valIniUSD<=0) return null;
+  const rendTotal=(valActUSD-valIniUSD)/valIniUSD;
+  const rendDiario=Math.pow(1+rendTotal,1/diasPond)-1;
+  const rendAnual=Math.pow(1+rendDiario,365)-1;
+  return{rendTotal:rendTotal*100,rendDiario:rendDiario*100,rendAnual:rendAnual*100,dias:Math.round(diasPond),nCompras:compras.length};
+}
+
+function migrateCompras(r){
+  // Migrar posición existente a compras[] si todavía no tiene
+  if(!r.compras||r.compras.length===0){
+    r.compras=[];
+    if((parseFloat(r.val_inicial)||0)>0 && r.fecha_inicio){
+      r.compras.push({fecha:r.fecha_inicio, monto:parseFloat(r.val_inicial)});
+    }
+  }
+}
+
 function renderInversiones(){
   const container=document.getElementById('inv-brokers-container'); if(!container)return;
   const ym=state.currentMonth;
@@ -2070,15 +2109,17 @@ function renderInversiones(){
         const signo=diffUSD>=0?'+':'';
         const pppBadge=nCompras>1?`<span style="font-size:9px;font-family:var(--mono);color:var(--amber);background:var(--amber-dim);padding:1px 5px;border-radius:3px;margin-right:4px">PPP·${nCompras}c</span>`:'';
         let rendDiarioHtml='';
-        if(r.fecha_inicio&&valIni>0&&valAct>0){
-          const inicio=new Date(r.fecha_inicio+'T12:00:00');
-          const hoy=new Date();
-          const dias=Math.max(1,Math.round((hoy-inicio)/(1000*60*60*24)));
-          const rendDiario=(Math.pow(valAct/valIni,1/dias)-1)*100;
-          const rendAnual=(Math.pow(1+rendDiario/100,365)-1)*100;
-          const dColor=rendDiario>=0?'var(--green)':'var(--red)';
-          const dSigno=rendDiario>=0?'+':'';
-          rendDiarioHtml=`<div style="font-size:9px;font-family:var(--mono);color:${dColor};margin-top:1px">${dSigno}${fmtN(rendDiario)}%/día · ${dSigno}${fmtN(rendAnual)}% anual</div>`;
+        // Migrar a compras[] si todavía no tiene (posiciones viejas)
+        migrateCompras(r);
+        const twr=calcTWR(r.compras,valAct,r.cur);
+        if(twr){
+          const dColor=twr.rendDiario>=0?'var(--green)':'var(--red)';
+          const dSigno=twr.rendDiario>=0?'+':'';
+          const etiqueta=twr.nCompras>1?`TWR·${twr.nCompras}c`:'';
+          const etiquetaHtml=etiqueta?`<span style="font-size:8px;background:var(--amber-dim);color:var(--amber);padding:1px 4px;border-radius:3px;margin-right:3px">${etiqueta}</span>`:'';
+          rendDiarioHtml=`<div style="font-size:9px;font-family:var(--mono);color:${dColor};margin-top:1px">${etiquetaHtml}${dSigno}${fmtN(twr.rendDiario)}%/día · ${dSigno}${fmtN(twr.rendAnual)}% anual (${twr.dias}d pond.)</div>`;
+        } else if(r.compras&&r.compras.length>0){
+          rendDiarioHtml=`<div style="font-size:9px;font-family:var(--mono);color:var(--muted);margin-top:1px">Anualizado no disponible (&lt;15 días)</div>`;
         }
         perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:3px">${pppBadge}Invertido: USD ${fmtN(valIni)}</div>`+
                  `<div style="font-size:10px;font-family:var(--mono);color:${color}">${signo}USD ${fmtN(Math.abs(diffUSD))} (${signo}${fmtN(pct)}%)</div>`+
@@ -2574,16 +2615,23 @@ function confirmarUsar(){
     const monto=parseFloat(document.getElementById('usar-inv-amt').value);
     if(!monto||monto<=0){showToast('⚠ Ingresá un monto válido');return;}
     if(monto>saldo){showToast('⚠ Monto supera el saldo disponible');return;}
+    const hoyFecha=new Date().toISOString().slice(0,10);
     if(invId==='_nueva'){
       const desc=document.getElementById('usar-inv-nueva-desc').value.trim();
       const broker=document.getElementById('usar-inv-nueva-broker').value.trim();
       const tipo=document.getElementById('usar-inv-nueva-tipo').value;
       const liq=document.getElementById('usar-inv-nueva-liq').value;
       if(!desc){showToast('⚠ Ingresá el nombre de la posición');return;}
-      state.inversiones.push({id:uid(),desc,broker:broker||'—',tipo,cur:cuenta.cur,val:String(monto),liq,note:''});
+      state.inversiones.push({id:uid(),desc,broker:broker||'—',tipo,cur:cuenta.cur,val:String(monto),val_inicial:String(monto),fecha_inicio:hoyFecha,liq,note:'',compras:[{fecha:hoyFecha,monto}]});
     }else{
       const inv=state.inversiones.find(r=>r.id===invId); if(!inv)return;
       inv.val=String((parseFloat(inv.val)||0)+monto);
+      // Actualizar val_inicial y registrar en compras[]
+      inv.val_inicial=String((parseFloat(inv.val_inicial)||0)+monto);
+      if(!inv.fecha_inicio) inv.fecha_inicio=hoyFecha;
+      migrateCompras(inv);
+      inv.compras.push({fecha:hoyFecha,monto});
+      inv.num_compras=((parseInt(inv.num_compras)||1)+1);
     }
     cuenta.amt=String(saldo-monto);
     saveState();renderAll();showToast('✓ Inversión actualizada y saldo descontado');closeUsarModal();
