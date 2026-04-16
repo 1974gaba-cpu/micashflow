@@ -175,8 +175,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
     <div class="logo-v">versión 3.0</div>
   </div>
   <div class="nav-section">Flujos</div>
-  <div class="nav-item active" onclick="goTab('ingresos',this)"><span>↑</span> Ingresos</div>
+  <div class="nav-item" onclick="goTab('ingresos',this)"><span>↑</span> Ingresos</div>
   <div class="nav-item" onclick="goTab('gastos',this)"><span>↓</span> Gastos</div>
+  <div class="nav-item" onclick="goTab('saldo',this)"><span>≡</span> Saldo Operativo</div>
   <div class="nav-section">Patrimonio</div>
   <div class="nav-item" onclick="goTab('inversiones',this)"><span>◆</span> Inversiones</div>
   <div class="nav-item" onclick="goTab('seguros',this)"><span>🛡</span> Seguros</div>
@@ -340,6 +341,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- SALDO OPERATIVO -->
+  <div class="page" id="page-saldo">
+    <div class="ph"><div class="ph-title">Saldo Operativo</div><div class="ph-sub" id="saldo-periodo">Ingresos fijos vs gastos del mes — sin inversiones ni préstamos</div></div>
+    <div id="saldo-content"></div>
   </div>
 
   <!-- INVERSIONES -->
@@ -519,6 +526,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeEditModal()">Cancelar</button>
       <button class="btn-save" onclick="saveEdit()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- GF SCOPE MODAL -->
+<div class="modal-overlay" id="gf-scope-modal">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-title">¿Aplicar cambio a...?</div>
+    <p style="font-size:13px;color:var(--muted2);margin-bottom:16px;line-height:1.5">Podés modificar el monto solo para este mes, o actualizar el valor base desde ahora en adelante.</p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button onclick="confirmGFScope('month')" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;cursor:pointer;text-align:left;transition:.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">Solo este mes</div>
+        <div style="font-size:11px;color:var(--muted2);margin-top:3px;font-family:var(--mono)">El valor global no cambia — override temporal</div>
+      </button>
+      <button onclick="confirmGFScope('forward')" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;cursor:pointer;text-align:left;transition:.15s" onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">Desde este mes en adelante</div>
+        <div style="font-size:11px;color:var(--muted2);margin-top:3px;font-family:var(--mono)">Actualiza el valor base — aplica a todos los meses futuros</div>
+      </button>
+    </div>
+    <div style="margin-top:14px;text-align:right">
+      <button class="btn-cancel" onclick="closeGFScopeModal()">Cancelar</button>
     </div>
   </div>
 </div>
@@ -1168,7 +1196,16 @@ function calcMonth(ym){
 
 // ─── NAV ───────────────────────────────────────────────────────────────
 function prevMonth(){ const[y,m]=state.currentMonth.split('-').map(Number); const d=new Date(y,m-2,1); state.currentMonth=d.toISOString().slice(0,7); saveState(); renderAll(); }
-function nextMonth(){ const[y,m]=state.currentMonth.split('-').map(Number); const d=new Date(y,m,1); state.currentMonth=d.toISOString().slice(0,7); saveState(); renderAll(); }
+function nextMonth(){
+  const[y,m]=state.currentMonth.split('-').map(Number);
+  const d=new Date(y,m,1);
+  const next=d.toISOString().slice(0,7);
+  const today=new Date();
+  const maxD=new Date(today.getFullYear(),today.getMonth()+12,1);
+  const max=maxD.toISOString().slice(0,7);
+  if(next>max){showToast('⚠ Límite de proyección: 12 meses desde hoy');return;}
+  state.currentMonth=next; saveState(); renderAll();
+}
 function goToday(){ state.currentMonth=new Date().toISOString().slice(0,7); saveState(); renderAll(); }
 function saveFX(){ state.fx=parseFloat(document.getElementById('tc-inp').value)||1420; saveState(); }
 function moveItem(col, id, dir){
@@ -2295,7 +2332,7 @@ function renderGastosFijosTable(rows){
       <td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td>
       <td style="white-space:nowrap">
         <span class="drag-handle" title="Arrastrar">⠿</span>
-        <button class="btn-edit" onclick="openEditModal('${col}','${r.id}')" title="Editar">✎</button>
+        <button class="btn-edit" onclick="askScopeGF('${r.id}')" title="Editar">✎</button>
         <button class="btn-del" onclick="delItem('${col}','${r.id}')">×</button>
       </td>
     </tr>`;
@@ -2712,6 +2749,8 @@ function renderActiveTab(){
     renderSeguros();
   } else if(_activeTab==='retiro'){
     renderRetiro();
+  } else if(_activeTab==='saldo'){
+    renderSaldoOp();
   } else if(_activeTab==='resumen'){
     renderResumen();
   } else if(_activeTab==='objetivo'){
@@ -2990,9 +3029,113 @@ function actualizarRetiro(){
 }
 
 // ─── RESUMEN ───────────────────────────────────────────────────────────
+function renderSaldoOp(){
+  const ym=state.currentMonth;
+  const cierre=isCerrado(ym)?state.cierres[ym]:null;
+  const fx=state.fx||1420;
+
+  // Ingresos fijos del mes
+  let if_ars=0, if_usd=0;
+  (state.ingresos_fijos[ym]||[]).forEach(r=>r.cur==='ARS'?if_ars+=parseFloat(r.amt)||0:if_usd+=parseFloat(r.amt)||0);
+
+  // Gastos fijos (con overrides y snapshots)
+  let gf_ars=0, gf_usd=0;
+  state.gastos_fijos.forEach(r=>{
+    const snap=cierre&&cierre.gf_amts&&cierre.gf_amts[r.id];
+    const ovr=!cierre&&state.gf_overrides&&state.gf_overrides[ym]&&state.gf_overrides[ym][r.id];
+    const amt=parseFloat(snap?snap.amt:ovr?ovr.amt:r.amt)||0;
+    const cur=snap?snap.cur:ovr?ovr.cur:r.cur;
+    cur==='ARS'?gf_ars+=amt:gf_usd+=amt;
+  });
+
+  // Débitos automáticos + tarjetas (= Total Tarjetas)
+  let tar_ars=0, tar_usd=0;
+  state.da_fijos.forEach(r=>{
+    const {activo}=daCuotaActual(r,ym); if(!activo) return;
+    const snap=cierre&&cierre.da_amts&&cierre.da_amts[r.id];
+    const amt=parseFloat(snap?snap.amt:r.amt)||0;
+    const cur=snap?snap.cur:r.cur;
+    cur==='ARS'?tar_ars+=amt:tar_usd+=amt;
+  });
+  (state.tarjetas[ym]||[]).forEach(r=>r.cur==='ARS'?tar_ars+=parseFloat(r.amt)||0:tar_usd+=parseFloat(r.amt)||0);
+
+  // Gastos directos
+  let gd_ars=0, gd_usd=0;
+  (state.gastos_directos[ym]||[]).forEach(r=>r.cur==='ARS'?gd_ars+=parseFloat(r.amt)||0:gd_usd+=parseFloat(r.amt)||0);
+
+  const total_ing_ars=if_ars;
+  const total_ing_usd=if_usd;
+  const total_gas_ars=gf_ars+tar_ars+gd_ars;
+  const total_gas_usd=gf_usd+tar_usd+gd_usd;
+  const saldo_ars=total_ing_ars-total_gas_ars;
+  const saldo_usd=total_ing_usd-total_gas_usd;
+  // Neto en USD equiv.
+  const neto_usd=saldo_usd+(saldo_ars/fx);
+
+  const colorArs=saldo_ars>=0?'var(--green)':'var(--red)';
+  const colorUsd=saldo_usd>=0?'var(--green)':'var(--red)';
+  const colorNeto=neto_usd>=0?'var(--green)':'var(--red)';
+  const signArs=saldo_ars>=0?'+':'';
+  const signUsd=saldo_usd>=0?'+':'';
+  const signNeto=neto_usd>=0?'+':'';
+
+  function row(label,ars,usd,bold,color){
+    const arsStr=ars!==null?`<span style="font-family:var(--mono);font-size:${bold?'15px':'13px'};color:${color||'var(--text)'}">ARS ${fmtN(Math.abs(ars))}</span>`:'—';
+    const usdStr=usd!==null&&usd!==0?`<span style="font-family:var(--mono);font-size:${bold?'15px':'13px'};color:${color||'var(--muted2)'}">USD ${fmtN(Math.abs(usd))}</span>`:'';
+    return`<div style="display:flex;justify-content:space-between;align-items:center;padding:${bold?'13px':'10px'} 4px;border-top:1px solid var(--border);${bold?'background:var(--surface2);border-radius:6px;margin-top:6px;padding:13px 12px':''}">
+      <span style="font-size:${bold?'13px':'12px'};font-weight:${bold?700:400};color:${color||'var(--muted2)'};${bold?'':'font-family:var(--mono)'}">${label}</span>
+      <div style="display:flex;gap:16px;align-items:center">${arsStr}${usdStr?` <span style="color:var(--border)">|</span> ${usdStr}`:''}</div>
+    </div>`;
+  }
+
+  const html=`
+  <div class="card">
+    <div class="card-title" style="margin-bottom:4px"><span class="dot dg"></span>Ingresos fijos del mes</div>
+    ${row('Fijos mensuales',total_ing_ars,total_ing_usd,false,'var(--green)')}
+  </div>
+  <div class="card">
+    <div class="card-title" style="margin-bottom:4px"><span class="dot dr"></span>Egresos operativos</div>
+    ${row('Gastos fijos',gf_ars,gf_usd)}
+    ${row('Tarjetas + Débitos automáticos',tar_ars,tar_usd)}
+    ${row('Gastos directos',gd_ars,gd_usd)}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 4px;border-top:2px solid var(--border2);margin-top:4px">
+      <span style="font-size:12px;font-weight:700;color:var(--text)">TOTAL EGRESOS</span>
+      <div style="display:flex;gap:16px">
+        <span style="font-family:var(--mono);font-size:15px;color:var(--red)">ARS ${fmtN(total_gas_ars)}</span>
+        ${total_gas_usd?`<span style="color:var(--border)">|</span><span style="font-family:var(--mono);font-size:15px;color:var(--red)">USD ${fmtN(total_gas_usd)}</span>`:''}
+      </div>
+    </div>
+  </div>
+  <div class="card" style="border-color:${neto_usd>=0?'var(--green)':'var(--red)'}22">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-size:13px;font-weight:800;letter-spacing:-.3px">SALDO OPERATIVO</span>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${mlabel(ym)}</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12px;font-family:var(--mono);color:var(--muted2)">ARS</span>
+        <span style="font-family:var(--mono);font-size:22px;font-weight:700;color:${colorArs}">${signArs}${fmtN(saldo_ars)}</span>
+      </div>
+      ${total_ing_usd||total_gas_usd?`<div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12px;font-family:var(--mono);color:var(--muted2)">USD</span>
+        <span style="font-family:var(--mono);font-size:22px;font-weight:700;color:${colorUsd}">${signUsd}${fmtN(saldo_usd)}</span>
+      </div>`:''}
+      <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:2px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:11px;font-family:var(--mono);color:var(--muted)">Neto USD equiv. (TC ${fmtN(fx)})</span>
+        <span style="font-family:var(--mono);font-size:18px;font-weight:700;color:${colorNeto}">${signNeto}USD ${fmtN(Math.abs(neto_usd))}</span>
+      </div>
+    </div>
+  </div>`;
+
+  const el=document.getElementById('saldo-content');
+  if(el) el.innerHTML=html;
+  const sp=document.getElementById('saldo-periodo');
+  if(sp) sp.textContent=mlabel(ym)+' · solo flujo operativo';
+}
+
+
 function renderResumen(){
   const ym=state.currentMonth;
-  document.getElementById('res-periodo').textContent=mlabel(ym);
   const fx=state.fx; const cerrado=isCerrado(ym); const prevMes=prevYM(ym); const prevCerrado=isCerrado(prevMes);
   const{ing_ars,ing_usd,gas_ars,gas_usd,saldo_ars,saldo_usd,neto_usd}=calcMonth(ym);
   const invMes=getInversionesMes(ym);
@@ -3482,8 +3625,22 @@ const FDEFS={
   da_fijos:[{k:'desc',l:'Descripción',t:'text'},{k:'tarjeta',l:'Tarjeta',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'cuotas_total',l:'Cuotas totales',t:'number'},{k:'inicio',l:'Mes inicio',t:'month'},{k:'note',l:'Nota',t:'text'}],
 };
 const CLBLS={ingresos_fijos:'Ingreso fijo',ingresos_espo:'Ingreso esporádico',gastos_fijos:'Gasto fijo',da_fijos:'Débito automático',tarjetas:'Tarjeta',gastos_directos:'Gasto directo',inversiones:'Inversión',efectivo:'Efectivo',prestamos_out:'Préstamo otorgado',prestamos_in:'Préstamo recibido'};
-let _eCol=null,_eId=null;
+let _eCol=null,_eId=null,_gfScope='month';
 function openEditDA(id){openEditModal('da_fijos',id);}
+let _gfScopeId=null;
+function askScopeGF(id){
+  if(isCerrado(state.currentMonth)){showToast('⚠ No se puede operar en un mes cerrado');return;}
+  _gfScopeId=id;
+  document.getElementById('gf-scope-modal').classList.add('show');
+}
+function closeGFScopeModal(){document.getElementById('gf-scope-modal').classList.remove('show');_gfScopeId=null;}
+function confirmGFScope(scope){
+  document.getElementById('gf-scope-modal').classList.remove('show');
+  _gfScope=scope;
+  openEditModal('gastos_fijos',_gfScopeId);
+  _gfScopeId=null;
+}
+
 function openEditModal(col,id){
   const arr=['ingresos_fijos','ingresos_espo','tarjetas','gastos_directos'].includes(col)?(state[col][state.currentMonth]||[]):state[col];
   const item=arr.find(r=>r.id===id); if(!item)return;
@@ -3504,25 +3661,37 @@ function saveEdit(){
   const arr=['ingresos_fijos','ingresos_espo','tarjetas','gastos_directos'].includes(_eCol)?(state[_eCol][state.currentMonth]||[]):state[_eCol];
   const item=arr.find(r=>r.id===_eId); if(!item)return;
   if(_eCol==='gastos_fijos'){
-    // amt y cur: override del mes actual — nunca toca el global
     const newAmt=document.getElementById('mf-amt')?.value;
     const newCur=document.getElementById('mf-cur')?.value;
-    if(!state.gf_overrides)state.gf_overrides={};
-    if(!state.gf_overrides[state.currentMonth])state.gf_overrides[state.currentMonth]={};
-    state.gf_overrides[state.currentMonth][_eId]={
-      amt:newAmt!==undefined?newAmt:item.amt,
-      cur:newCur!==undefined?newCur:item.cur
-    };
-    // desc, day, note: actualizar global (solo display, no afectan cálculos)
+    if(_gfScope==='forward'){
+      // Actualiza el valor global — aplica desde este mes en adelante
+      if(newAmt!==undefined) item.amt=newAmt;
+      if(newCur!==undefined) item.cur=newCur;
+      // Limpia overrides de este mes en adelante para este item
+      if(state.gf_overrides){
+        const ym=state.currentMonth;
+        Object.keys(state.gf_overrides).forEach(k=>{ if(k>=ym && state.gf_overrides[k][_eId]) delete state.gf_overrides[k][_eId]; });
+      }
+    } else {
+      // Solo este mes: override temporal
+      if(!state.gf_overrides)state.gf_overrides={};
+      if(!state.gf_overrides[state.currentMonth])state.gf_overrides[state.currentMonth]={};
+      state.gf_overrides[state.currentMonth][_eId]={
+        amt:newAmt!==undefined?newAmt:item.amt,
+        cur:newCur!==undefined?newCur:item.cur
+      };
+    }
+    // desc, day, note: siempre actualiza el global
     (FDEFS[_eCol]||[]).filter(f=>f.k!=='amt'&&f.k!=='cur').forEach(f=>{
       const el=document.getElementById('mf-'+f.k);if(el)item[f.k]=el.value;
     });
   } else {
     (FDEFS[_eCol]||[]).forEach(f=>{const el=document.getElementById('mf-'+f.k);if(el)item[f.k]=el.value;});
   }
+  _gfScope='month'; // reset
   saveState();closeEditModal();renderAll();showToast('✓ Cambios guardados');
 }
-document.addEventListener('click',e=>{if(e.target.id==='edit-modal')closeEditModal();if(e.target.id==='cobro-modal')closeCobroModal();});
+document.addEventListener('click',e=>{if(e.target.id==='edit-modal')closeEditModal();if(e.target.id==='cobro-modal')closeCobroModal();if(e.target.id==='gf-scope-modal')closeGFScopeModal();});
 
 // ─── GASTO DIRECTO CON DESCUENTO ─────────────────────────────────────
 let _gdItem=null;
