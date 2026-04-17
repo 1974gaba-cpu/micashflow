@@ -1172,20 +1172,21 @@ function calcMonth(ym){
     const cur=snap?snap.cur:ovr?ovr.cur:r.cur;
     cur==='ARS'?ga+=amt:gu+=amt;
   });
+  const _abonadas=(state.tarjetas_abonadas&&state.tarjetas_abonadas[ym])||{};
+  const _isAbonada=(key)=>{ if(!key) return false; if(_abonadas[key]) return true; const kl=key.toLowerCase().trim(); return Object.keys(_abonadas).some(k=>k.toLowerCase().trim()===kl); };
   state.da_fijos.forEach(r=>{
     const {activo}=daCuotaActual(r,ym); if(!activo) return;
     const snap=cierre&&cierre.da_amts&&cierre.da_amts[r.id];
     const ovr=!cierre&&state.da_overrides&&state.da_overrides[ym]&&state.da_overrides[ym][r.id];
     const amt=parseFloat(snap?snap.amt:ovr?ovr.amt:r.amt)||0;
     const cur=snap?snap.cur:ovr?ovr.cur:r.cur;
-    cur==='ARS'?ga+=amt:gu+=amt;
+    if(cur==='ARS'){ ga+=amt; }
+    else { if(!_isAbonada((r.tarjeta||'')+' · USD')) gu+=amt; }
   });
-  const _abonadas=(state.tarjetas_abonadas&&state.tarjetas_abonadas[ym])||{};
-  const _isAbonada=(key)=>{ if(!key) return false; if(_abonadas[key]) return true; const kl=key.toLowerCase().trim(); return Object.keys(_abonadas).some(k=>k.toLowerCase().trim()===kl); };
   (state.tarjetas[ym]||[]).forEach(r=>{
     const amt=parseFloat(r.amt)||0;
     if(r.cur==='ARS'){ ga+=amt; }
-    else { if(!_isAbonada(r.desc)) gu+=amt; } // USD: solo suma si la tarjeta NO está abonada
+    else { if(!_isAbonada((r.tarjeta||'')+' · USD')) gu+=amt; }
   });
   (state.gastos_directos[ym]||[]).forEach(r=>r.cur==='ARS'?ga+=parseFloat(r.amt)||0:gu+=parseFloat(r.amt)||0);
   state.prestamos_in.forEach(r=>{
@@ -3161,20 +3162,21 @@ function renderSaldoOp(){
 
   // Débitos automáticos + tarjetas (= Total Tarjetas)
   let tar_ars=0, tar_usd=0;
+  const _abSaldo=(state.tarjetas_abonadas&&state.tarjetas_abonadas[ym])||{};
+  const _isAbSaldo=(key)=>{ if(!key) return false; if(_abSaldo[key]) return true; const kl=key.toLowerCase().trim(); return Object.keys(_abSaldo).some(k=>k.toLowerCase().trim()===kl); };
   state.da_fijos.forEach(r=>{
     const {activo}=daCuotaActual(r,ym); if(!activo) return;
     const snap=cierre&&cierre.da_amts&&cierre.da_amts[r.id];
     const ovr=!cierre&&state.da_overrides&&state.da_overrides[ym]&&state.da_overrides[ym][r.id];
     const amt=parseFloat(snap?snap.amt:ovr?ovr.amt:r.amt)||0;
     const cur=snap?snap.cur:ovr?ovr.cur:r.cur;
-    cur==='ARS'?tar_ars+=amt:tar_usd+=amt;
+    if(cur==='ARS'){ tar_ars+=amt; }
+    else { if(!_isAbSaldo((r.tarjeta||'')+' · USD')) tar_usd+=amt; }
   });
-  const _abSaldo=(state.tarjetas_abonadas&&state.tarjetas_abonadas[ym])||{};
-  const _isAbSaldo=(key)=>{ if(!key) return false; if(_abSaldo[key]) return true; const kl=key.toLowerCase().trim(); return Object.keys(_abSaldo).some(k=>k.toLowerCase().trim()===kl); };
   (state.tarjetas[ym]||[]).forEach(r=>{
     const amt=parseFloat(r.amt)||0;
     if(r.cur==='ARS'){ tar_ars+=amt; }
-    else { if(!_isAbSaldo(r.desc)) tar_usd+=amt; }
+    else { if(!_isAbSaldo((r.tarjeta||'')+' · USD')) tar_usd+=amt; }
   });
 
   // Gastos directos
