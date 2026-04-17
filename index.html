@@ -2911,6 +2911,7 @@ function renderSeguros(){
         <div class="form-row">
           <div class="fg" style="min-width:150px"><label>Cuenta Individual (ARS)</label><input id="seg-ci-${s.id}" type="number" value="${s.cuenta_individual}" step="0.01"></div>
           <div class="fg" style="min-width:150px"><label>Fondo Fluctuación (ARS)</label><input id="seg-ff-${s.id}" type="number" value="${s.fondo_fluctuacion||0}" step="0.01"></div>
+          <div class="fg" style="min-width:150px"><label>Suma asegurada (ARS)</label><input id="seg-sa-${s.id}" type="number" value="${s.suma_asegurada||0}" step="0.01"></div>
           <div class="fg" style="min-width:140px"><label>Prima total (ARS)</label><input id="seg-pm-${s.id}" type="number" value="${s.prima_mensual_ars||0}" step="0.01"></div>
           <div class="fg" style="min-width:140px"><label>Prima pura (ARS)</label><input id="seg-pp-${s.id}" type="number" value="${s.prima_pura_ars||0}" step="0.01"></div>
           <div class="fg" style="min-width:120px"><label>Impuesto rescate (%)</label><input id="seg-ip-${s.id}" type="number" value="${s.rescate_impuesto_pct||0}" step="0.1" min="0" max="50" placeholder="0"></div>
@@ -2984,6 +2985,8 @@ function saveSegUpdate(id){
     seg.cuenta_individual = ci;
     seg.fondo_fluctuacion = ff;
     seg.fondo_saldo = ci + ff;
+    const sa = parseFloat(document.getElementById('seg-sa-'+id)?.value);
+    if(!isNaN(sa) && sa > 0) seg.suma_asegurada = sa;
     const pm = parseFloat(document.getElementById('seg-pm-'+id)?.value);
     const pp = parseFloat(document.getElementById('seg-pp-'+id)?.value);
     if(!isNaN(pm) && pm > 0) seg.prima_mensual_ars = pm;
