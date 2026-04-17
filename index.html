@@ -3150,6 +3150,15 @@ function renderSaldoOp(){
   let ie_ars=0, ie_usd=0;
   (state.ingresos_espo[ym]||[]).forEach(r=>r.cur==='ARS'?ie_ars+=parseFloat(r.amt)||0:ie_usd+=parseFloat(r.amt)||0);
 
+  // Préstamos privados pendientes de cobro este mes
+  let pend_ars=0, pend_usd=0;
+  state.prestamos_out.forEach(r=>{
+    const cuotasEnMes=prestamoCuotasEnMes(r,ym);
+    if(cuotasEnMes>0&&!isCobrado('prestamos_out',r.id,ym)&&!prestamEnDuda('prestamos_out',r.id)){
+      r.cur==='ARS'?pend_ars+=parseFloat(r.amt)||0:pend_usd+=parseFloat(r.amt)||0;
+    }
+  });
+
   // Gastos fijos (con overrides y snapshots)
   let gf_ars=0, gf_usd=0;
   state.gastos_fijos.forEach(r=>{
@@ -3183,8 +3192,8 @@ function renderSaldoOp(){
   let gd_ars=0, gd_usd=0;
   (state.gastos_directos[ym]||[]).forEach(r=>r.cur==='ARS'?gd_ars+=parseFloat(r.amt)||0:gd_usd+=parseFloat(r.amt)||0);
 
-  const total_ing_ars=if_ars+ie_ars;
-  const total_ing_usd=if_usd+ie_usd;
+  const total_ing_ars=if_ars+ie_ars+pend_ars;
+  const total_ing_usd=if_usd+ie_usd+pend_usd;
   const total_gas_ars=gf_ars+tar_ars+gd_ars;
   const total_gas_usd=gf_usd+tar_usd+gd_usd;
   const saldo_ars=total_ing_ars-total_gas_ars;
@@ -3213,7 +3222,8 @@ function renderSaldoOp(){
     <div class="card-title" style="margin-bottom:4px"><span class="dot dg"></span>Ingresos del mes</div>
     ${row('Fijos mensuales',if_ars,if_usd,false,'var(--green)')}
     ${(ie_ars||ie_usd)?row('Esporádicos',ie_ars,ie_usd,false,'var(--green)'):''}
-    ${(ie_ars||ie_usd)?row('TOTAL INGRESOS',total_ing_ars,total_ing_usd,true,'var(--green)'):''}
+    ${(pend_ars||pend_usd)?row('Préstamos a cobrar',pend_ars,pend_usd,false,'var(--green)'):''}
+    ${(ie_ars||ie_usd||pend_ars||pend_usd)?row('TOTAL INGRESOS',total_ing_ars,total_ing_usd,true,'var(--green)'):''}
   </div>
   <div class="card">
     <div class="card-title" style="margin-bottom:4px"><span class="dot dr"></span>Egresos operativos</div>
