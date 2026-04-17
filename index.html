@@ -3777,16 +3777,24 @@ function saveEdit(){
     const newAmt=document.getElementById('mf-amt')?.value;
     const newCur=document.getElementById('mf-cur')?.value;
     if(_gfScope==='forward'){
-      // Actualiza el valor global — aplica desde este mes en adelante
+      const oldAmt=item.amt; const oldCur=item.cur;
       if(newAmt!==undefined) item.amt=newAmt;
       if(newCur!==undefined) item.cur=newCur;
-      // Limpia overrides de este mes en adelante para este item
-      if(state.gf_overrides){
-        const ym=state.currentMonth;
-        Object.keys(state.gf_overrides).forEach(k=>{ if(k>=ym && state.gf_overrides[k][_eId]) delete state.gf_overrides[k][_eId]; });
+      // Limpia overrides de este mes en adelante
+      if(!state.gf_overrides) state.gf_overrides={};
+      const ym=state.currentMonth;
+      Object.keys(state.gf_overrides).forEach(k=>{ if(k>=ym && state.gf_overrides[k][_eId]) delete state.gf_overrides[k][_eId]; });
+      // Protege meses anteriores no cerrados con el valor viejo
+      const inicio=item.inicio||item.day?'2000-01':'2000-01';
+      let cur2=item.inicio||'2000-01'; if(cur2>ym) cur2=ym;
+      while(cur2<ym){
+        if(!state.cierres||!state.cierres[cur2]){
+          if(!state.gf_overrides[cur2]) state.gf_overrides[cur2]={};
+          if(!state.gf_overrides[cur2][_eId]) state.gf_overrides[cur2][_eId]={amt:oldAmt,cur:oldCur};
+        }
+        const[y,m]=cur2.split('-').map(Number); const nd=new Date(y,m,1); cur2=nd.toISOString().slice(0,7);
       }
     } else {
-      // Solo este mes: override temporal
       if(!state.gf_overrides)state.gf_overrides={};
       if(!state.gf_overrides[state.currentMonth])state.gf_overrides[state.currentMonth]={};
       state.gf_overrides[state.currentMonth][_eId]={
@@ -3794,7 +3802,6 @@ function saveEdit(){
         cur:newCur!==undefined?newCur:item.cur
       };
     }
-    // desc, day, note: siempre actualiza el global
     (FDEFS[_eCol]||[]).filter(f=>f.k!=='amt'&&f.k!=='cur').forEach(f=>{
       const el=document.getElementById('mf-'+f.k);if(el)item[f.k]=el.value;
     });
@@ -3804,11 +3811,21 @@ function saveEdit(){
     const esFijo=!item.cuotas_total||parseInt(item.cuotas_total)===0;
     if(esFijo){
       if(_gfScope==='forward'){
+        const oldAmt=item.amt; const oldCur=item.cur;
         if(newAmt!==undefined) item.amt=newAmt;
         if(newCur!==undefined) item.cur=newCur;
-        if(state.da_overrides){
-          const ym=state.currentMonth;
-          Object.keys(state.da_overrides).forEach(k=>{ if(k>=ym && state.da_overrides[k][_eId]) delete state.da_overrides[k][_eId]; });
+        // Limpia overrides de este mes en adelante
+        if(!state.da_overrides) state.da_overrides={};
+        const ym=state.currentMonth;
+        Object.keys(state.da_overrides).forEach(k=>{ if(k>=ym && state.da_overrides[k][_eId]) delete state.da_overrides[k][_eId]; });
+        // Protege meses anteriores no cerrados con el valor viejo
+        let cur2=item.inicio||'2000-01'; if(cur2>ym) cur2=ym;
+        while(cur2<ym){
+          if(!state.cierres||!state.cierres[cur2]){
+            if(!state.da_overrides[cur2]) state.da_overrides[cur2]={};
+            if(!state.da_overrides[cur2][_eId]) state.da_overrides[cur2][_eId]={amt:oldAmt,cur:oldCur};
+          }
+          const[y,m]=cur2.split('-').map(Number); const nd=new Date(y,m,1); cur2=nd.toISOString().slice(0,7);
         }
       } else {
         if(!state.da_overrides) state.da_overrides={};
