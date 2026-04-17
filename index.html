@@ -3139,6 +3139,10 @@ function renderSaldoOp(){
   let if_ars=0, if_usd=0;
   (state.ingresos_fijos[ym]||[]).forEach(r=>r.cur==='ARS'?if_ars+=parseFloat(r.amt)||0:if_usd+=parseFloat(r.amt)||0);
 
+  // Ingresos esporádicos del mes
+  let ie_ars=0, ie_usd=0;
+  (state.ingresos_espo[ym]||[]).forEach(r=>r.cur==='ARS'?ie_ars+=parseFloat(r.amt)||0:ie_usd+=parseFloat(r.amt)||0);
+
   // Gastos fijos (con overrides y snapshots)
   let gf_ars=0, gf_usd=0;
   state.gastos_fijos.forEach(r=>{
@@ -3165,8 +3169,8 @@ function renderSaldoOp(){
   let gd_ars=0, gd_usd=0;
   (state.gastos_directos[ym]||[]).forEach(r=>r.cur==='ARS'?gd_ars+=parseFloat(r.amt)||0:gd_usd+=parseFloat(r.amt)||0);
 
-  const total_ing_ars=if_ars;
-  const total_ing_usd=if_usd;
+  const total_ing_ars=if_ars+ie_ars;
+  const total_ing_usd=if_usd+ie_usd;
   const total_gas_ars=gf_ars+tar_ars+gd_ars;
   const total_gas_usd=gf_usd+tar_usd+gd_usd;
   const saldo_ars=total_ing_ars-total_gas_ars;
@@ -3192,8 +3196,10 @@ function renderSaldoOp(){
 
   const html=`
   <div class="card">
-    <div class="card-title" style="margin-bottom:4px"><span class="dot dg"></span>Ingresos fijos del mes</div>
-    ${row('Fijos mensuales',total_ing_ars,total_ing_usd,false,'var(--green)')}
+    <div class="card-title" style="margin-bottom:4px"><span class="dot dg"></span>Ingresos del mes</div>
+    ${row('Fijos mensuales',if_ars,if_usd,false,'var(--green)')}
+    ${(ie_ars||ie_usd)?row('Esporádicos',ie_ars,ie_usd,false,'var(--green)'):''}
+    ${(ie_ars||ie_usd)?row('TOTAL INGRESOS',total_ing_ars,total_ing_usd,true,'var(--green)'):''}
   </div>
   <div class="card">
     <div class="card-title" style="margin-bottom:4px"><span class="dot dr"></span>Egresos operativos</div>
