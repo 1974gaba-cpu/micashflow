@@ -1035,7 +1035,7 @@ function cerrarMes(ym){
   state.efectivo.forEach(r=>{ if(r.cur==='ARS') ef_ars+=parseFloat(r.amt)||0; else ef_usd+=parseFloat(r.amt)||0; });
   // Snapshot de montos de débitos automáticos y gastos fijos — para que ediciones futuras no alteren meses cerrados
   const da_amts={};
-  state.da_fijos.forEach(r=>{ da_amts[r.id]={amt:r.amt,cur:r.cur}; });
+  state.da_fijos.forEach(r=>{ const ovr=state.da_overrides&&state.da_overrides[ym]&&state.da_overrides[ym][r.id]; da_amts[r.id]=ovr?{amt:ovr.amt,cur:ovr.cur}:{amt:r.amt,cur:r.cur}; });
   const gf_amts={};
   state.gastos_fijos.forEach(r=>{ gf_amts[r.id]={amt:r.amt,cur:r.cur}; });
   // Snapshot de valores de inversiones
@@ -1065,6 +1065,7 @@ let state={
   gf_pagos:{},
   tarjetas_abonadas:{},
   gf_overrides:{},
+  da_overrides:{},
   prestamos_out:[],prestamos_in:[],
   prestamos_cancelados:[],
   cobros:{},
@@ -1074,7 +1075,7 @@ let state={
   retiro_jubilacion:{saldo:2882166.65, fecha_snapshot:'2026-03-01', edad_cobro:65, prima_mensual_ars:76008, dia_debito:13},
   fx:1420,currentMonth:new Date().toISOString().slice(0,7)
 };
-const STATE_KEYS=['ingresos_fijos','ingresos_espo','gastos_fijos','da_fijos','tarjetas','gastos_directos','gf_pagos','gf_overrides','inversiones','efectivo','prestamos_out','prestamos_in','prestamos_cancelados','cobros','cierres','notas','seguros_capitalizacion','retiro_jubilacion','fx','currentMonth','tarjetas_abonadas','objetivo_meta_usd','objetivo_inflacion','objetivo_rango_usd','objetivo_fecha'];
+const STATE_KEYS=['ingresos_fijos','ingresos_espo','gastos_fijos','da_fijos','tarjetas','gastos_directos','gf_pagos','gf_overrides','da_overrides','inversiones','efectivo','prestamos_out','prestamos_in','prestamos_cancelados','cobros','cierres','notas','seguros_capitalizacion','retiro_jubilacion','fx','currentMonth','tarjetas_abonadas','objetivo_meta_usd','objetivo_inflacion','objetivo_rango_usd','objetivo_fecha'];
 function saveState(){ state._savedAt=new Date().toISOString(); STATE_KEYS.forEach(k=>lsSet(k,state[k])); lsSet('_savedAt',state._savedAt); driveSaveDebounced(); }
 
 // ─── DA HELPERS ────────────────────────────────────────────────────────
@@ -1174,8 +1175,9 @@ function calcMonth(ym){
   state.da_fijos.forEach(r=>{
     const {activo}=daCuotaActual(r,ym); if(!activo) return;
     const snap=cierre&&cierre.da_amts&&cierre.da_amts[r.id];
-    const amt=parseFloat(snap?snap.amt:r.amt)||0;
-    const cur=snap?snap.cur:r.cur;
+    const ovr=!cierre&&state.da_overrides&&state.da_overrides[ym]&&state.da_overrides[ym][r.id];
+    const amt=parseFloat(snap?snap.amt:ovr?ovr.amt:r.amt)||0;
+    const cur=snap?snap.cur:ovr?ovr.cur:r.cur;
     cur==='ARS'?ga+=amt:gu+=amt;
   });
   (state.tarjetas[ym]||[]).forEach(r=>r.cur==='ARS'?ga+=parseFloat(r.amt)||0:gu+=parseFloat(r.amt)||0);
@@ -1821,7 +1823,8 @@ function renderDA(ym){
   // Aplicar snapshot de montos si el mes está cerrado
   const daConSnap=state.da_fijos.map(r=>{
     const s=cierre&&cierre.da_amts&&cierre.da_amts[r.id];
-    return s?{...r,amt:s.amt,cur:s.cur}:r;
+    const ovr=!cierre&&state.da_overrides&&state.da_overrides[ym]&&state.da_overrides[ym][r.id];
+    return s?{...r,amt:s.amt,cur:s.cur}:ovr?{...r,amt:ovr.amt,cur:ovr.cur}:r;
   });
   // Calcular último mes activo de una DA con cuotas
   function daLastMonth(r){
@@ -3151,8 +3154,9 @@ function renderSaldoOp(){
   state.da_fijos.forEach(r=>{
     const {activo}=daCuotaActual(r,ym); if(!activo) return;
     const snap=cierre&&cierre.da_amts&&cierre.da_amts[r.id];
-    const amt=parseFloat(snap?snap.amt:r.amt)||0;
-    const cur=snap?snap.cur:r.cur;
+    const ovr=!cierre&&state.da_overrides&&state.da_overrides[ym]&&state.da_overrides[ym][r.id];
+    const amt=parseFloat(snap?snap.amt:ovr?ovr.amt:r.amt)||0;
+    const cur=snap?snap.cur:ovr?ovr.cur:r.cur;
     cur==='ARS'?tar_ars+=amt:tar_usd+=amt;
   });
   (state.tarjetas[ym]||[]).forEach(r=>r.cur==='ARS'?tar_ars+=parseFloat(r.amt)||0:tar_usd+=parseFloat(r.amt)||0);
@@ -3254,7 +3258,8 @@ function renderResumen(){
   });
   const daActive=state.da_fijos.filter(r=>daCuotaActual(r,ym).activo).map(r=>{
     const snap=cerrado&&state.cierres[ym].da_amts&&state.cierres[ym].da_amts[r.id];
-    return snap?{...r,amt:snap.amt,cur:snap.cur}:r;
+    const ovr=!cerrado&&state.da_overrides&&state.da_overrides[ym]&&state.da_overrides[ym][r.id];
+    return snap?{...r,amt:snap.amt,cur:snap.cur}:ovr?{...r,amt:ovr.amt,cur:ovr.cur}:r;
   });
   const cobradosEste=state.prestamos_out.filter(r=>isCobrado('prestamos_out',r.id,ym));
   const cobradosUSD=cobradosEste.filter(r=>r.cur==='USD').reduce((a,r)=>a+(parseFloat(r.amt)||0),0);
@@ -3724,18 +3729,28 @@ const FDEFS={
 };
 const CLBLS={ingresos_fijos:'Ingreso fijo',ingresos_espo:'Ingreso esporádico',gastos_fijos:'Gasto fijo',da_fijos:'Débito automático',tarjetas:'Tarjeta',gastos_directos:'Gasto directo',inversiones:'Inversión',efectivo:'Efectivo',prestamos_out:'Préstamo otorgado',prestamos_in:'Préstamo recibido'};
 let _eCol=null,_eId=null,_gfScope='month';
-function openEditDA(id){openEditModal('da_fijos',id);}
-let _gfScopeId=null;
+function openEditDA(id){
+  const item=state.da_fijos.find(r=>r.id===id); if(!item)return;
+  const esFijo=!item.cuotas_total||parseInt(item.cuotas_total)===0;
+  if(esFijo){
+    if(isCerrado(state.currentMonth)){showToast('⚠ No se puede operar en un mes cerrado');return;}
+    _scopeCol='da_fijos'; _gfScopeId=id;
+    document.getElementById('gf-scope-modal').classList.add('show');
+  } else {
+    openEditModal('da_fijos',id);
+  }
+}
+let _gfScopeId=null, _scopeCol='gastos_fijos';
 function askScopeGF(id){
   if(isCerrado(state.currentMonth)){showToast('⚠ No se puede operar en un mes cerrado');return;}
-  _gfScopeId=id;
+  _scopeCol='gastos_fijos'; _gfScopeId=id;
   document.getElementById('gf-scope-modal').classList.add('show');
 }
 function closeGFScopeModal(){document.getElementById('gf-scope-modal').classList.remove('show');_gfScopeId=null;}
 function confirmGFScope(scope){
   document.getElementById('gf-scope-modal').classList.remove('show');
   _gfScope=scope;
-  openEditModal('gastos_fijos',_gfScopeId);
+  openEditModal(_scopeCol,_gfScopeId);
   _gfScopeId=null;
 }
 
@@ -3780,6 +3795,35 @@ function saveEdit(){
       };
     }
     // desc, day, note: siempre actualiza el global
+    (FDEFS[_eCol]||[]).filter(f=>f.k!=='amt'&&f.k!=='cur').forEach(f=>{
+      const el=document.getElementById('mf-'+f.k);if(el)item[f.k]=el.value;
+    });
+  } else if(_eCol==='da_fijos'){
+    const newAmt=document.getElementById('mf-amt')?.value;
+    const newCur=document.getElementById('mf-cur')?.value;
+    const esFijo=!item.cuotas_total||parseInt(item.cuotas_total)===0;
+    if(esFijo){
+      if(_gfScope==='forward'){
+        if(newAmt!==undefined) item.amt=newAmt;
+        if(newCur!==undefined) item.cur=newCur;
+        if(state.da_overrides){
+          const ym=state.currentMonth;
+          Object.keys(state.da_overrides).forEach(k=>{ if(k>=ym && state.da_overrides[k][_eId]) delete state.da_overrides[k][_eId]; });
+        }
+      } else {
+        if(!state.da_overrides) state.da_overrides={};
+        if(!state.da_overrides[state.currentMonth]) state.da_overrides[state.currentMonth]={};
+        state.da_overrides[state.currentMonth][_eId]={
+          amt:newAmt!==undefined?newAmt:item.amt,
+          cur:newCur!==undefined?newCur:item.cur
+        };
+      }
+    } else {
+      // Cuotas: actualiza directo (período fijo, no retroactivo)
+      if(newAmt!==undefined) item.amt=newAmt;
+      if(newCur!==undefined) item.cur=newCur;
+    }
+    // desc, tarjeta, cuotas_total, inicio, note: siempre global
     (FDEFS[_eCol]||[]).filter(f=>f.k!=='amt'&&f.k!=='cur').forEach(f=>{
       const el=document.getElementById('mf-'+f.k);if(el)item[f.k]=el.value;
     });
