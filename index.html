@@ -491,7 +491,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
       <div class="card-title"><span class="dot db"></span>Tabla histórica</div>
       <div style="overflow-x:auto">
         <table class="tbl" style="min-width:580px">
-          <thead><tr><th>Período</th><th>Ing. USD</th><th>Ing. ARS</th><th>Gas. USD</th><th>Gas. ARS</th><th>Saldo USD</th><th>Saldo ARS</th></tr></thead>
+          <thead><tr><th>Período</th><th>Ingresos</th><th>Gastos</th><th>Neto USD equiv.</th></tr></thead>
           <tbody id="tb-hist"></tbody>
         </table>
       </div>
@@ -3316,7 +3316,7 @@ function renderResumen(){
   let pasivo_usd=0,pasivo_ars=0;
   (state.prestamos_in||[]).forEach(r=>{
     if(r.capital&&r.fecha_inicio){
-      // Formato nuevo: usar monto de cancelación del mes actual
+      // Formato nuevo: usar monto de cancelación del mes navegado (el interés corre)
       const cancel=calcCancelacionPI(r,ym)||0;
       if(cancel>0) r.cur==='USD'?pasivo_usd+=cancel:pasivo_ars+=cancel;
     } else {
@@ -3474,20 +3474,21 @@ function renderObjetivo(){
   const infVal=infActual.val;
   const fechaObj=state.objetivo_fecha||'';
 
-  // Patrimonio actual
-  const invMes=getInversionesMes(ym);
+  // Patrimonio actual — siempre basado en hoy (no en el mes navegado)
+  const _hoyYMObj=new Date().toISOString().slice(0,7);
+  const invMes=getInversionesMes(_hoyYMObj);
   let inv_usd=0;
   invMes.filter(r=>r.desc!=='Prevención Retiro').forEach(r=>inv_usd+=toUSD(parseFloat(r.val)||0,r.cur));
-  const{ef_ars,ef_usd}=getEfectivoMes(ym);
+  const{ef_ars,ef_usd}=getEfectivoMes(_hoyYMObj);
   const seguros=state.seguros_capitalizacion||[];
   let seg_usd=0,seg_ars=0;
   seguros.forEach(s=>{if(s.moneda_fondo==='USD')seg_usd+=parseFloat(s.fondo_saldo)||0;else seg_ars+=parseFloat(s.fondo_saldo)||0;});
   const seg_usd_equiv=seg_usd+seg_ars/fx;
   const patActual=inv_usd+ef_usd+ef_ars/fx+seg_usd_equiv;
 
-  // Patrimonio proyectado (mismo cálculo que renderResumen)
+  // Patrimonio proyectado — cobros futuros y pasivo siempre desde hoy
   let cobrosFutTotUSD=0, cobrosFutTotARS=0;
-  let cfCursor=nextYM(ym); let cfMax=36;
+  let cfCursor=nextYM(_hoyYMObj); let cfMax=36;
   while(cfMax-->0){
     const pend=state.prestamos_out.filter(r=>prestamoCuotasEnMes(r,cfCursor)>0&&!isCobrado('prestamos_out',r.id,cfCursor)&&!prestamEnDuda('prestamos_out',r.id));
     if(!pend.length) break;
@@ -3497,7 +3498,7 @@ function renderObjetivo(){
   }
   let pasivo_usd=0, pasivo_ars=0;
   (state.prestamos_in||[]).forEach(r=>{
-    if(r.capital&&r.fecha_inicio){const cancel=calcCancelacionPI(r,ym)||0;if(cancel>0)r.cur==='USD'?pasivo_usd+=cancel:pasivo_ars+=cancel;}
+    if(r.capital&&r.fecha_inicio){const cancel=calcCancelacionPI(r,_hoyYMObj)||0;if(cancel>0)r.cur==='USD'?pasivo_usd+=cancel:pasivo_ars+=cancel;}
     else{const c=parseInt(r.cuotas)||0;if(c>0){const t=(parseFloat(r.amt)||0)*c;r.cur==='USD'?pasivo_usd+=t:pasivo_ars+=t;}}
   });
   const pasivoEquiv=pasivo_usd+pasivo_ars/fx;
@@ -3685,20 +3686,47 @@ function saveObjetivo(){
 
 // ─── HISTORIAL ─────────────────────────────────────────────────────────
 let hChart=null,hTab='neto';
-function getLast12(){const ms=[];const[cy,cm]=state.currentMonth.split('-').map(Number);for(let i=11;i>=0;i--){const d=new Date(cy,cm-1-i,1);ms.push(d.toISOString().slice(0,7));}return ms;}
+function getLast12(){const hoy=new Date().toISOString().slice(0,7);const cierresKeys=Object.keys(state.cierres||{}).sort();const desde=cierresKeys.length>0?cierresKeys[0]:hoy;const ms=[];let cur=desde;while(cur<=hoy&&ms.length<36){ms.push(cur);const[y,m]=cur.split("-").map(Number);const nd=new Date(y,m,1);cur=nd.toISOString().slice(0,7);}if(!ms.includes(hoy))ms.push(hoy);return ms;}
+function getHistorialMeses(){
+  const inicio='2026-03';
+  const hoy=new Date().toISOString().slice(0,7);
+  const[hy,hm]=hoy.split('-').map(Number);
+  const fin=new Date(hy,hm+2,1).toISOString().slice(0,7);
+  const ms=[];let cur=inicio;
+  while(cur<=fin){ms.push(cur);const[y,m]=cur.split('-').map(Number);cur=new Date(y,m,1).toISOString().slice(0,7);}
+  return ms;
+}
 function switchHTab(t,el){hTab=t;document.querySelectorAll('.htab').forEach(x=>x.classList.remove('active'));if(el)el.classList.add('active');renderHistorial();}
 function renderHistorial(){
-  const ms=getLast12(); const data=ms.map(ym=>({ym,...calcMonth(ym)})); const labels=ms.map(smlabel);
+  const hoy=new Date().toISOString().slice(0,7);
+  const ms=getHistorialMeses();
+  const data=ms.map(ym=>({ym,esFuturo:ym>hoy,...calcMonth(ym)}));
   const tb=document.getElementById('tb-hist');
-  if(tb)tb.innerHTML=data.map(d=>`<tr><td style="font-family:var(--mono);font-size:11px">${mlabel(d.ym)}</td><td class="mono-cell" style="color:var(--green)">${fmtN(d.ing_usd)}</td><td class="mono-cell" style="color:var(--green)">${fmtN(d.ing_ars)}</td><td class="mono-cell" style="color:var(--red)">${fmtN(d.gas_usd)}</td><td class="mono-cell" style="color:var(--red)">${fmtN(d.gas_ars)}</td><td class="mono-cell" style="color:${d.saldo_usd>=0?'var(--green)':'var(--red)'}">${d.saldo_usd>=0?'+':''}${fmtN(d.saldo_usd)}</td><td class="mono-cell" style="color:${d.saldo_ars>=0?'var(--green)':'var(--red)'}">${d.saldo_ars>=0?'+':''}${fmtN(d.saldo_ars)}</td></tr>`).join('');
+  if(tb)tb.innerHTML=data.map(d=>{
+    const esHoy=d.ym===hoy;
+    const rowBg=esHoy?'background:var(--surface2)':d.esFuturo?'opacity:0.5':'';
+    const badge=d.esFuturo
+      ?`<span style="font-size:9px;font-family:var(--mono);color:var(--muted);background:var(--surface2);padding:1px 5px;border-radius:3px;margin-left:4px">futuro</span>`
+      :esHoy?`<span style="font-size:9px;font-family:var(--mono);color:var(--accent);background:var(--accent)22;padding:1px 5px;border-radius:3px;margin-left:4px">hoy</span>`:'';
+    const netoUSD=Math.round(d.neto_usd*100)/100;
+    const netoColor=netoUSD>=0?'var(--green)':'var(--red)';
+    const netoSigno=netoUSD>=0?'+':'';
+    const ingUSD=d.ing_usd>0?`<div style="color:var(--green);font-size:12px">USD ${fmtN(d.ing_usd)}</div>`:'';
+    const ingARS=d.ing_ars>0?`<div style="color:var(--muted);font-size:10px">ARS ${fmtN(d.ing_ars)}</div>`:'';
+    const gasUSD=d.gas_usd>0?`<div style="color:var(--red);font-size:12px">USD ${fmtN(d.gas_usd)}</div>`:'';
+    const gasARS=d.gas_ars>0?`<div style="color:var(--muted);font-size:10px">ARS ${fmtN(d.gas_ars)}</div>`:'';
+    return`<tr style="${rowBg}"><td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${mlabel(d.ym)}${badge}</td><td class="mono-cell">${ingUSD}${ingARS}</td><td class="mono-cell">${gasUSD}${gasARS}</td><td class="mono-cell" style="color:${netoColor};font-weight:600">${netoSigno}USD ${fmtN(Math.abs(netoUSD))}</td></tr>`;
+  }).join('');
   const canvas=document.getElementById('hist-chart'); if(!canvas)return;
   if(hChart){hChart.destroy();hChart=null;}
   Chart.defaults.color='#6b7280';Chart.defaults.borderColor='#2a2d35';Chart.defaults.font.family="'DM Mono',monospace";Chart.defaults.font.size=11;
+  const dataReal=data.filter(d=>!d.esFuturo);
+  const labelsReal=dataReal.map(d=>smlabel(d.ym));
   let datasets=[];
-  if(hTab==='neto'){datasets=[{label:'Neto USD equiv.',data:data.map(d=>Math.round(d.neto_usd*100)/100),borderColor:'#a78bfa',tension:.4,pointRadius:5,pointHoverRadius:7,pointBackgroundColor:data.map(d=>d.neto_usd>=0?'#22c55e':'#ef4444'),fill:true,backgroundColor:ctx=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,270);g.addColorStop(0,'rgba(167,139,250,.15)');g.addColorStop(1,'rgba(167,139,250,0)');return g;}}];}
-  else if(hTab==='comparado'){datasets=[{label:'Ingresos (USD equiv.)',data:data.map(d=>Math.round((d.ing_usd+d.ing_ars/state.fx)*100)/100),borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,.07)',fill:true,tension:.4,pointRadius:3},{label:'Gastos (USD equiv.)',data:data.map(d=>Math.round((d.gas_usd+d.gas_ars/state.fx)*100)/100),borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.07)',fill:true,tension:.4,pointRadius:3}];}
-  else{datasets=[{label:'Saldo ARS',data:data.map(d=>Math.round(d.saldo_ars)),borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.07)',fill:true,tension:.4,pointRadius:3}];}
-  hChart=new Chart(canvas.getContext('2d'),{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#9ca3af',boxWidth:12,font:{size:11}}},tooltip:{backgroundColor:'#1e2128',borderColor:'#363a45',borderWidth:1,titleColor:'#e8eaf0',bodyColor:'#9ca3af',padding:10,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmtN(ctx.parsed.y)}`}}},scales:{x:{grid:{color:'#2a2d35'},ticks:{color:'#6b7280',maxRotation:45}},y:{grid:{color:'#2a2d35'},ticks:{color:'#6b7280',callback:v=>fmtN(v)}}}}});
+  if(hTab==='neto'){datasets=[{label:'Neto USD equiv.',data:dataReal.map(d=>Math.round(d.neto_usd*100)/100),borderColor:'#a78bfa',tension:.4,pointRadius:5,pointHoverRadius:7,pointBackgroundColor:dataReal.map(d=>d.neto_usd>=0?'#22c55e':'#ef4444'),fill:true,backgroundColor:ctx=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,270);g.addColorStop(0,'rgba(167,139,250,.15)');g.addColorStop(1,'rgba(167,139,250,0)');return g;}}];}
+  else if(hTab==='comparado'){datasets=[{label:'Ingresos (USD equiv.)',data:dataReal.map(d=>Math.round((d.ing_usd+d.ing_ars/state.fx)*100)/100),borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,.07)',fill:true,tension:.4,pointRadius:3},{label:'Gastos (USD equiv.)',data:dataReal.map(d=>Math.round((d.gas_usd+d.gas_ars/state.fx)*100)/100),borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.07)',fill:true,tension:.4,pointRadius:3}];}
+  else{datasets=[{label:'Saldo ARS',data:dataReal.map(d=>Math.round(d.saldo_ars)),borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.07)',fill:true,tension:.4,pointRadius:3}];}
+  hChart=new Chart(canvas.getContext('2d'),{type:'line',data:{labels:labelsReal,datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#9ca3af',boxWidth:12,font:{size:11}}},tooltip:{backgroundColor:'#1e2128',borderColor:'#363a45',borderWidth:1,titleColor:'#e8eaf0',bodyColor:'#9ca3af',padding:10,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmtN(ctx.parsed.y)}`}}},scales:{x:{grid:{color:'#2a2d35'},ticks:{color:'#6b7280',maxRotation:45}},y:{grid:{color:'#2a2d35'},ticks:{color:'#6b7280',callback:v=>fmtN(v)}}}}}}); 
 }
 
 // ─── NOTAS ─────────────────────────────────────────────────────────────
