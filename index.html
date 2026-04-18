@@ -3299,7 +3299,8 @@ function renderResumen(){
   const pendUSD=pendOutSinDuda.filter(r=>r.cur==='USD').reduce((a,r)=>a+(parseFloat(r.amt)||0),0);
   const pendARS=pendOutSinDuda.filter(r=>r.cur==='ARS').reduce((a,r)=>a+(parseFloat(r.amt)||0),0);
   const cobrosFuturos=[];
-  let cursor=nextYM(ym); let maxMeses=36;
+  const _hoyYM=new Date().toISOString().slice(0,7);
+  let cursor=nextYM(_hoyYM); let maxMeses=36;
   while(maxMeses-->0){
     // Excluir préstamos marcados "en duda" (alguna cuota no cobrada)
     const pendientes=state.prestamos_out.filter(r=>prestamoCuotasEnMes(r,cursor)>0&&!isCobrado('prestamos_out',r.id,cursor)&&!prestamEnDuda('prestamos_out',r.id));
