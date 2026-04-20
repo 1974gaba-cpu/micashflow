@@ -2252,7 +2252,8 @@ function renderInversiones(){
         } else if(r.compras&&r.compras.length>0){
           rendDiarioHtml=`<div style="font-size:9px;font-family:var(--mono);color:var(--muted);margin-top:1px">Anualizado no disponible (&lt;15 días)</div>`;
         }
-        perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:3px">${pppBadge}Invertido: USD ${fmtN(valIni)}</div>`+
+        const valIniLabel=r.cur==='ARS'?`ARS ${fmtN(valIni)}`:`USD ${fmtN(toUSD(valIni,r.cur))}`;
+        perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:3px">${pppBadge}Invertido: ${valIniLabel}</div>`+
                  `<div style="font-size:10px;font-family:var(--mono);color:${color}">${signo}USD ${fmtN(Math.abs(diffUSD))} (${signo}${fmtN(pct)}%)</div>`+
                  rendDiarioHtml;
       } else if(nCompras>1){
