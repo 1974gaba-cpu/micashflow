@@ -2259,7 +2259,9 @@ function renderInversiones(){
       } else if(nCompras>1){
         perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--amber);margin-top:2px"><span style="background:var(--amber-dim);padding:1px 5px;border-radius:3px">PPP · ${nCompras} compras</span></div>`;
       }
-      const fechaIni=r.fecha_inicio?`<div style="font-size:9px;font-family:var(--mono);color:var(--muted);margin-top:1px">desde ${new Date(r.fecha_inicio+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}</div>`:'';
+      const _fi=r.fecha_inicio?new Date(r.fecha_inicio+'T12:00:00'):null;
+      const _dias=_fi?Math.round((new Date()-_fi)/86400000):0;
+      const fechaIni=_fi?`<div style="font-size:9px;font-family:var(--mono);color:var(--muted);margin-top:1px">desde ${_fi.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})} · ${_dias}d</div>`:'';
       return`<tr><td>${r.desc}</td><td><span class="badge bac">${r.tipo||'—'}</span></td><td>${curBadge(r.cur)}</td><td class="mono-cell"><div>${fmtN(r.val)}</div>${perfHtml}${fechaIni}</td><td>${liqBadge(r.liq)}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button class="btn-edit" onclick="moveInv('${r.id}',-1)" title="Subir" style="opacity:${globalIdx===0?0.2:1}">↑</button><button class="btn-edit" onclick="moveInv('${r.id}',1)" title="Bajar" style="opacity:${globalIdx===state.inversiones.length-1?0.2:1}">↓</button><button class="btn-edit" onclick="openEditModal('inversiones','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('inversiones','${r.id}')">×</button></td></tr>`;
     }).join('');
     // Detectar si hay duplicados (mismo ticker+moneda) en este broker
