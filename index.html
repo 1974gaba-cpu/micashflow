@@ -3599,52 +3599,32 @@ function renderObjetivo(){
 
   // Base para cálculos: proyectado (incluye cobros futuros comprometidos - deudas)
   const baseCalculo=patProyectado;
-  const falta_usd=Math.max(0,meta_usd-baseCalculo);
+  const metaAlcanzada=meta_usd>0&&baseCalculo>=meta_usd;
+  const excedente=metaAlcanzada?Math.round((baseCalculo-meta_usd)*100)/100:0;
+  const falta_usd=metaAlcanzada?0:Math.max(0,meta_usd-baseCalculo);
   const reqMensual=mesesRestantes>0?falta_usd/mesesRestantes:0;
+  // Progreso: si supera meta va al 100%, sino proporcional
   const progreso=meta_usd>0?Math.min(100,baseCalculo/meta_usd*100):0;
-  const metaAlcanzada=baseCalculo>=meta_usd;
 
-  // Fecha estimada de llegada al objetivo (ritmo actual basado en cierres)
-  let fechaEstimadaLabel='';
-  let mesesAdelanto=0;
-  if(meta_usd>0&&patActual>0){
-    const cierresKeys=Object.keys(state.cierres||{}).sort();
-    let ritmoMensual=0;
-    if(cierresKeys.length>=2){
-      const pats={};
-      cierresKeys.forEach(k=>{
-        const c=state.cierres[k];let inv=0;
-        (c.inversiones||[]).filter(r=>r.desc!=='Prevención Retiro').forEach(r=>inv+=toUSD(parseFloat(r.val)||0,r.cur));
-        pats[k]=inv+(c.efectivo_usd||0)+(c.efectivo_ars||0)/(c.fx||fx);
-      });
-      const deltas=[];
-      for(let i=1;i<cierresKeys.length;i++) deltas.push(pats[cierresKeys[i]]-pats[cierresKeys[i-1]]);
-      if(deltas.length) ritmoMensual=deltas.reduce((a,b)=>a+b,0)/deltas.length;
-    }
-    if(ritmoMensual>0&&falta_usd>0){
-      const mesesNec=Math.ceil(falta_usd/ritmoMensual);
-      const hoyParts=_hoyYMObj.split('-').map(Number);
-      const llegada=new Date(hoyParts[0],hoyParts[1]-1+mesesNec,1);
-      const llegadaYM=llegada.toISOString().slice(0,7);
-      fechaEstimadaLabel=mlabel(llegadaYM);
-      if(fechaObj){
-        const[fy,fm]=fechaObj.split('-').map(Number);
-        const[ly,lm]=llegadaYM.split('-').map(Number);
-        mesesAdelanto=(fy-ly)*12+(fm-lm); // positivo = antes, negativo = después
-      }
+  // Cuánto necesitás crecer en inversiones (no cobros) para llegar antes de la fecha
+  // Cobros ya comprometidos en el plazo objetivo
+  let cobrosEnPlazo=0;
+  if(fechaObj){
+    let cur2=nextYM(_hoyYMObj);
+    while(cur2<=fechaObj){
+      const pend=state.prestamos_out.filter(r=>prestamoCuotasEnMes(r,cur2)>0&&!isCobrado('prestamos_out',r.id,cur2)&&!prestamEnDuda('prestamos_out',r.id));
+      pend.filter(r=>r.cur==='USD').forEach(r=>cobrosEnPlazo+=parseFloat(r.amt)||0);
+      pend.filter(r=>r.cur==='ARS').forEach(r=>cobrosEnPlazo+=((parseFloat(r.amt)||0)/fx));
+      cur2=nextYM(cur2);
     }
   }
+  const patConCobros=patActual+cobrosEnPlazo-pasivoEquiv;
+  const faltaInversiones=Math.max(0,meta_usd-patConCobros);
+  const reqInvMensual=mesesRestantes>0&&faltaInversiones>0?faltaInversiones/mesesRestantes:0;
 
-  // Breakdown por moneda para benchmark
-  let actUSD=0, actARS=0;
-  invMes.filter(r=>r.desc!=='Prevención Retiro').forEach(r=>{
-    if(r.cur==='USD') actUSD+=parseFloat(r.val)||0;
-    else actARS+=parseFloat(r.val)||0;
-  });
-  actUSD+=ef_usd+seg_usd;
-  actARS+=ef_ars+seg_ars;
-  const actUSDtotal=actUSD+(cobrosFutTotUSD-pasivo_usd);
-  const actARStotal=actARS+cobrosFutTotARS-pasivo_ars;
+  // Benchmark por moneda usando patrimonio proyectado
+  const actUSDtotal=patProyectado*(inv_usd+ef_usd+seg_usd>0?(inv_usd+ef_usd+seg_usd)/patActual:0.5);
+  const actARStotal=(ef_ars + (()=>{let a=0;invMes.filter(r=>r.desc!=='Prevención Retiro'&&r.cur==='ARS').forEach(r=>a+=parseFloat(r.val)||0);return a;})());
 
   // Aviso inflación cambió
   const infPrev=(()=>{
@@ -3740,13 +3720,23 @@ function renderObjetivo(){
         <span style="font-size:13px;font-family:var(--mono);font-weight:700;color:var(--accent)">${fmtN(progreso)}%</span>
       </div>
       <div style="background:var(--surface2);border-radius:999px;height:10px;overflow:hidden;border:1px solid var(--border)">
-        <div style="background:linear-gradient(90deg,#3b82f6,#60a5fa);width:${progreso}%;height:100%;border-radius:999px;transition:width .4s ease"></div>
+        <div style="background:${metaAlcanzada?'linear-gradient(90deg,#f59e0b,#22c55e)':'linear-gradient(90deg,#3b82f6,#60a5fa)'};width:${progreso}%;height:100%;border-radius:999px;transition:width .4s ease"></div>
       </div>
       <div style="display:flex;justify-content:space-between;margin-top:4px">
         <span style="font-size:10px;font-family:var(--mono);color:var(--muted)">USD ${fmtN(patActual)} hoy · USD ${fmtN(patProyectado)} proyectado</span>
         <span style="font-size:10px;font-family:var(--mono);color:var(--muted)">USD ${fmtN(meta_usd)} meta</span>
       </div>
-      ${metaAlcanzada?`<div style="margin-top:6px;font-size:11px;font-family:var(--mono);color:var(--green)">🎯 Meta alcanzada en el período — considerá subir el objetivo</div>`:fechaEstimadaLabel?`<div style="margin-top:6px;font-size:11px;font-family:var(--mono);color:${mesesAdelanto>=0?'var(--green)':'var(--amber)'}">A este ritmo llegás en <strong>${fechaEstimadaLabel}</strong>${mesesAdelanto>0?' · '+mesesAdelanto+' mes'+(mesesAdelanto===1?'':'es')+' antes del objetivo':mesesAdelanto<0?' · '+Math.abs(mesesAdelanto)+' mes'+(Math.abs(mesesAdelanto)===1?'':'es')+' después del objetivo':' · justo en el objetivo'}</div>`:''}
+      ${metaAlcanzada
+        ?`<div style="margin-top:8px;background:#0f1a0a;border:1px solid var(--green);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+            <span style="font-size:18px">🎯</span>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--green);font-family:var(--sans)">Meta alcanzada en patrimonio proyectado</div>
+              <div style="font-size:11px;font-family:var(--mono);color:var(--muted2);margin-top:2px">En ${fechaLabel} tendrás ≈ <strong style="color:var(--green)">USD ${fmtN(excedente)} de excedente</strong> · considerá subir la meta</div>
+            </div>
+          </div>`
+        :reqInvMensual>0
+          ?`<div style="margin-top:6px;font-size:11px;font-family:var(--mono);color:var(--amber)">Para llegar antes de ${fechaLabel} necesitás crecer <strong>USD ${fmtN(reqInvMensual)}/mes</strong> en inversiones (cobros ya comprometidos: USD ${fmtN(Math.round(cobrosEnPlazo))})</div>`
+          :''}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
       <div style="background:#1a1200;border:1px solid var(--amber);border-radius:var(--r);padding:12px">
@@ -3770,11 +3760,11 @@ function renderObjetivo(){
       <div style="font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:2px">Benchmark</div>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:11px;font-family:var(--mono);color:var(--muted2)">🟦 Activos USD <span style="color:var(--muted);font-size:10px">≈ USD ${fmtN(Math.round(actUSDtotal))}</span></span>
-        <span style="font-size:11px;font-family:var(--mono);color:#60a5fa;font-weight:600">${rango.min}–${rango.max}% anual</span>
+        <span style="font-size:11px;font-family:var(--mono);color:var(--green);font-weight:600">${rango.min}–${rango.max}% anual</span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:11px;font-family:var(--mono);color:var(--muted2)">🟨 Activos ARS <span style="color:var(--muted);font-size:10px">≈ ARS ${fmtN(Math.round(actARStotal))}</span></span>
-        <span style="font-size:11px;font-family:var(--mono);color:var(--amber);font-weight:600">superar ${fmtN(infVal)}% anual</span>
+        <span style="font-size:11px;font-family:var(--mono);color:var(--muted2)">🟦 Activos ARS <span style="color:var(--muted);font-size:10px">≈ ARS ${fmtN(Math.round(actARStotal))}</span></span>
+        <span style="font-size:11px;font-family:var(--mono);color:#60a5fa;font-weight:600">superar ${fmtN(infVal)}% anual</span>
       </div>
     </div>
     ${trackerRows.length>0?`
