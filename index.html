@@ -903,7 +903,8 @@ async function driveLoadOrCreate(){
         const data = await res.json();
         if(data && data.version === 3){
           let loaded = 0;
-          STATE_KEYS.forEach(k=>{ if(data[k]!==undefined){ state[k]=data[k]; loaded++; } });
+          STATE_KEYS.forEach(k=>{ if(k==='currentMonth')return; if(data[k]!==undefined){ state[k]=data[k]; loaded++; } });
+          state.currentMonth=new Date().toISOString().slice(0,7); // siempre mes actual
           state._savedAt = data.savedAt || new Date().toISOString();
           lsSet('_savedAt', state._savedAt);
           lsSet('__drive_loaded', true); saveStateLocal(); renderAll();
@@ -943,7 +944,8 @@ async function driveLoadOrCreate(){
           driveFileId = chosenId;
           localStorage.setItem('cf3_driveFileId', driveFileId);
           let loaded = 0;
-          STATE_KEYS.forEach(k=>{ if(chosenData[k]!==undefined){ state[k]=chosenData[k]; loaded++; } });
+          STATE_KEYS.forEach(k=>{ if(k==='currentMonth')return; if(chosenData[k]!==undefined){ state[k]=chosenData[k]; loaded++; } });
+          state.currentMonth=new Date().toISOString().slice(0,7); // siempre mes actual
           state._savedAt = chosenData.savedAt || new Date().toISOString();
           lsSet('_savedAt', state._savedAt);
           lsSet('__drive_loaded', true); saveStateLocal(); renderAll();
