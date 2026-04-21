@@ -2120,6 +2120,11 @@ function confirmarRescate(){
   // Actualizar inversión
   inv.val = String(Math.round((valAct-monto)*100)/100);
   if(valIni>0) inv.val_inicial = String(Math.round((valIni-iniDescontado)*100)/100);
+  // Ajustar compras[] proporcionalmente para no distorsionar el TWR
+  if(inv.compras&&inv.compras.length>0){
+    const factorResta = 1 - pct;
+    inv.compras = inv.compras.map(c=>({...c, monto: Math.round(parseFloat(c.monto)*factorResta*100)/100})).filter(c=>c.monto>0);
+  }
   // Acreditar en cuenta si existe
   if(cuentaId && cuentaId!=='_sin'){
     const cuenta = state.efectivo.find(c=>c.id===cuentaId);
