@@ -3699,9 +3699,9 @@ function renderObjetivo(){
       cur2=nextYM(cur2);
     }
   }
-  const patConCobros=patActual+cobrosEnPlazo-pasivoEquiv;
-  const faltaInversiones=Math.max(0,meta_usd-patConCobros);
-  const reqInvMensual=mesesRestantes>0&&faltaInversiones>0?faltaInversiones/mesesRestantes:0;
+  // reqInvMensual = lo que falta sobre el patrimonio PROYECTADO (ya incluye cobros y deudas)
+  // falta_usd ya está calculado correctamente arriba como max(0, meta - patProyectado)
+  const reqInvMensual=mesesRestantes>0&&falta_usd>0?falta_usd/mesesRestantes:0;
 
   // Benchmark por moneda usando patrimonio proyectado
   const actUSDtotal=patProyectado*(inv_usd+ef_usd+seg_usd>0?(inv_usd+ef_usd+seg_usd)/patActual:0.5);
