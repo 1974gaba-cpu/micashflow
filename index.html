@@ -2056,6 +2056,79 @@ function actualizarTotalRefin(){
   txt.textContent=Object.entries(totales).map(([cur,t])=>`${cur} ${fmtN(t)}`).join(' + ');
   ref.style.display='block';
 }
+
+// ─── RESCATE PARCIAL ───────────────────────────────────────────────────
+let _rescateInvId = null;
+
+function abrirRescate(invId){
+  const inv = state.inversiones.find(r=>r.id===invId);
+  if(!inv) return;
+  _rescateInvId = invId;
+  const valAct = parseFloat(inv.val)||0;
+  const valIni = parseFloat(inv.val_inicial)||0;
+  // Info
+  document.getElementById('rescate-cur-lbl').textContent = inv.cur;
+  document.getElementById('rescate-info').innerHTML =
+    `<strong>${inv.desc}</strong> · ${inv.cur}<br>` +
+    `Valor actual: <strong>${inv.cur} ${fmtN(valAct)}</strong>` +
+    (valIni>0 ? ` · Invertido: ${inv.cur} ${fmtN(valIni)}` : '');
+  // Cuentas compatibles
+  const sel = document.getElementById('rescate-cuenta');
+  const cuentas = state.efectivo.filter(c=>c.cur===inv.cur);
+  sel.innerHTML = cuentas.length
+    ? cuentas.map(c=>`<option value="${c.id}">${c.desc} (${c.cur} ${fmtN(parseFloat(c.amt)||0)})</option>`).join('')
+    : `<option value="_sin">Sin cuentas en ${inv.cur} — igual registrar</option>`;
+  document.getElementById('rescate-amt').value = '';
+  document.getElementById('rescate-preview').style.display = 'none';
+  document.getElementById('rescate-modal').style.display = 'flex';
+}
+
+function actualizarRescatePreview(){
+  const inv = state.inversiones.find(r=>r.id===_rescateInvId); if(!inv) return;
+  const monto = parseFloat(document.getElementById('rescate-amt').value)||0;
+  const valAct = parseFloat(inv.val)||0;
+  const valIni = parseFloat(inv.val_inicial)||0;
+  const prev = document.getElementById('rescate-preview');
+  if(!monto||monto<=0||monto>valAct){ prev.style.display='none'; return; }
+  const pct = monto/valAct;
+  const iniDescontado = valIni>0 ? Math.round(valIni*pct*100)/100 : 0;
+  const valResta = Math.round((valAct-monto)*100)/100;
+  const iniResta = Math.round((valIni-iniDescontado)*100)/100;
+  prev.style.display = 'block';
+  prev.innerHTML =
+    `Rescatás: <strong>${inv.cur} ${fmtN(monto)}</strong> (${fmtN(Math.round(pct*1000)/10)}% del fondo)<br>` +
+    (valIni>0 ? `Capital base descontado: <strong>${inv.cur} ${fmtN(iniDescontado)}</strong><br>` : '') +
+    `Queda en el fondo: <strong>${inv.cur} ${fmtN(valResta)}</strong>` +
+    (valIni>0 ? ` · base ${inv.cur} ${fmtN(iniResta)}` : '');
+}
+
+function cerrarRescate(){
+  document.getElementById('rescate-modal').style.display = 'none';
+  _rescateInvId = null;
+}
+
+function confirmarRescate(){
+  const inv = state.inversiones.find(r=>r.id===_rescateInvId); if(!inv) return;
+  const monto = parseFloat(document.getElementById('rescate-amt').value)||0;
+  const valAct = parseFloat(inv.val)||0;
+  if(!monto||monto<=0){ showToast('⚠ Ingresá un monto válido'); return; }
+  if(monto>valAct){ showToast('⚠ El monto supera el valor actual del fondo'); return; }
+  const cuentaId = document.getElementById('rescate-cuenta').value;
+  const pct = monto/valAct;
+  const valIni = parseFloat(inv.val_inicial)||0;
+  const iniDescontado = valIni>0 ? Math.round(valIni*pct*100)/100 : 0;
+  // Actualizar inversión
+  inv.val = String(Math.round((valAct-monto)*100)/100);
+  if(valIni>0) inv.val_inicial = String(Math.round((valIni-iniDescontado)*100)/100);
+  // Acreditar en cuenta si existe
+  if(cuentaId && cuentaId!=='_sin'){
+    const cuenta = state.efectivo.find(c=>c.id===cuentaId);
+    if(cuenta) cuenta.amt = String(Math.round(((parseFloat(cuenta.amt)||0)+monto)*100)/100);
+  }
+  saveState(); renderAll(); cerrarRescate();
+  showToast(`✓ Rescate de ${inv.cur} ${fmtN(monto)} registrado en ${inv.desc}`);
+}
+
 function cerrarRefinanciacion(){
   document.getElementById('refin-modal').style.display='none';
   ['refin-desc','refin-amt','refin-cuotas','refin-day','refin-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -2262,7 +2335,7 @@ function renderInversiones(){
       const _fi=r.fecha_inicio?new Date(r.fecha_inicio+'T12:00:00'):null;
       const _dias=_fi?Math.round((new Date()-_fi)/86400000):0;
       const fechaIni=_fi?`<div style="font-size:9px;font-family:var(--mono);color:var(--muted);margin-top:1px">desde ${_fi.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})} · ${_dias}d</div>`:'';
-      return`<tr><td>${r.desc}</td><td><span class="badge bac">${r.tipo||'—'}</span></td><td>${curBadge(r.cur)}</td><td class="mono-cell"><div>${fmtN(r.val)}</div>${perfHtml}${fechaIni}</td><td>${liqBadge(r.liq)}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button class="btn-edit" onclick="moveInv('${r.id}',-1)" title="Subir" style="opacity:${globalIdx===0?0.2:1}">↑</button><button class="btn-edit" onclick="moveInv('${r.id}',1)" title="Bajar" style="opacity:${globalIdx===state.inversiones.length-1?0.2:1}">↓</button><button class="btn-edit" onclick="openEditModal('inversiones','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('inversiones','${r.id}')">×</button></td></tr>`;
+      return`<tr><td>${r.desc}</td><td><span class="badge bac">${r.tipo||'—'}</span></td><td>${curBadge(r.cur)}</td><td class="mono-cell"><div>${fmtN(r.val)}</div>${perfHtml}${fechaIni}</td><td>${liqBadge(r.liq)}</td><td class="note-cell" title="${(r.note||'').replace(/"/g,'&quot;')}">${r.note||'—'}</td><td style="white-space:nowrap"><button onclick="abrirRescate('${r.id}')" title="Rescatar parcial" style="background:var(--amber-dim);border:1px solid var(--amber)44;border-radius:4px;color:var(--amber);font-size:10px;padding:1px 7px;cursor:pointer;font-family:var(--mono);margin-right:2px">↓$</button><button class="btn-edit" onclick="moveInv('${r.id}',-1)" title="Subir" style="opacity:${globalIdx===0?0.2:1}">↑</button><button class="btn-edit" onclick="moveInv('${r.id}',1)" title="Bajar" style="opacity:${globalIdx===state.inversiones.length-1?0.2:1}">↓</button><button class="btn-edit" onclick="openEditModal('inversiones','${r.id}')" title="Editar">✎</button><button class="btn-del" onclick="delItem('inversiones','${r.id}')">×</button></td></tr>`;
     }).join('');
     // Detectar si hay duplicados (mismo ticker+moneda) en este broker
     const tickerKeys=items.map(r=>r.desc.toLowerCase()+'|'+r.cur);
@@ -4331,6 +4404,28 @@ document.addEventListener('DOMContentLoaded',function(){
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px">
       <button onclick="cerrarRefinanciacion()" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:9px 20px;font-size:12px;color:var(--muted2);cursor:pointer;font-family:var(--sans)">Cancelar</button>
       <button onclick="confirmarRefinanciacion()" style="background:var(--amber);color:#000;border:none;border-radius:6px;padding:9px 20px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--sans)">⇄ Confirmar refinanciación</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RESCATE PARCIAL -->
+<div id="rescate-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:3000;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:min(460px,95vw);display:flex;flex-direction:column;gap:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:14px;font-weight:700;color:var(--text);font-family:var(--sans)">↓$ Rescate parcial</div>
+      <button onclick="cerrarRescate()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">×</button>
+    </div>
+    <div id="rescate-info" style="font-size:11px;font-family:var(--mono);color:var(--muted);background:var(--surface2);border-radius:6px;padding:8px 12px"></div>
+    <div class="fg"><label>Monto a rescatar (<span id="rescate-cur-lbl"></span>)</label>
+      <input id="rescate-amt" type="number" placeholder="0" oninput="actualizarRescatePreview()">
+    </div>
+    <div id="rescate-preview" style="display:none;font-size:11px;font-family:var(--mono);background:var(--surface2);border-radius:6px;padding:8px 12px;line-height:1.8"></div>
+    <div class="fg"><label>Acreditar en cuenta</label>
+      <select id="rescate-cuenta" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:13px;color:var(--text);font-family:var(--sans);outline:none"></select>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="cerrarRescate()" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:9px 20px;font-size:12px;color:var(--muted2);cursor:pointer;font-family:var(--sans)">Cancelar</button>
+      <button onclick="confirmarRescate()" style="background:var(--amber);color:#000;border:none;border-radius:6px;padding:9px 20px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--sans)">↓$ Confirmar rescate</button>
     </div>
   </div>
 </div>
