@@ -2269,8 +2269,8 @@ function calcTWR(compras, valAct, cur){
   const valIniUSD=toUSD(totalInv,cur);
   if(valIniUSD<=0) return null;
   const rendTotal=(valActUSD-valIniUSD)/valIniUSD;
-  const rendDiario=Math.pow(1+rendTotal,1/diasPond)-1;
-  const rendAnual=Math.pow(1+rendDiario,365)-1;
+  const rendDiario=rendTotal/diasPond; // lineal simple — más honesto con períodos cortos
+  const rendAnual=rendDiario*365;
   return{rendTotal:rendTotal*100,rendDiario:rendDiario*100,rendAnual:rendAnual*100,dias:Math.round(diasPond),nCompras:compras.length};
 }
 
@@ -2326,7 +2326,8 @@ function renderInversiones(){
           const dSigno=twr.rendDiario>=0?'+':'';
           const etiqueta=twr.nCompras>1?`TWR·${twr.nCompras}c`:'';
           const etiquetaHtml=etiqueta?`<span style="font-size:8px;background:var(--amber-dim);color:var(--amber);padding:1px 4px;border-radius:3px;margin-right:3px">${etiqueta}</span>`:'';
-          rendDiarioHtml=`<div style="font-size:9px;font-family:var(--mono);color:${dColor};margin-top:1px">${etiquetaHtml}${dSigno}${fmtN(twr.rendDiario)}%/día · ${dSigno}${fmtN(twr.rendAnual)}% anual (${twr.dias}d pond.)</div>`;
+          const anualLabel=twr.dias>=30?` · ${dSigno}${fmtN(twr.rendAnual)}% anual`:'';
+          rendDiarioHtml=`<div style="font-size:9px;font-family:var(--mono);color:${dColor};margin-top:1px">${etiquetaHtml}${dSigno}${fmtN(twr.rendDiario)}%/día${anualLabel} (${twr.dias}d pond.)</div>`;
         } else if(r.compras&&r.compras.length>0){
           rendDiarioHtml=`<div style="font-size:9px;font-family:var(--mono);color:var(--muted);margin-top:1px">Anualizado no disponible (&lt;15 días)</div>`;
         }
