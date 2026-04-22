@@ -2332,7 +2332,13 @@ function renderInversiones(){
           rendDiarioHtml=`<div style="font-size:9px;font-family:var(--mono);color:var(--muted);margin-top:1px">Anualizado no disponible (&lt;15 días)</div>`;
         }
         const valIniLabel=r.cur==='ARS'?`ARS ${fmtN(valIni)}`:`USD ${fmtN(toUSD(valIni,r.cur))}`;
-        perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:3px">${pppBadge}Invertido: ${valIniLabel}</div>`+
+        const objPct=parseFloat(r.obj_pct)||0;
+        const objAlcanzado=objPct>0&&pct>=objPct;
+        const objBadge=objPct>0?objAlcanzado
+          ?`<span style="font-size:9px;font-family:var(--mono);background:#92400e;color:#fbbf24;padding:1px 6px;border-radius:3px;margin-left:4px">🎯 +${fmtN(objPct)}% objetivo alcanzado</span>`
+          :`<span style="font-size:9px;font-family:var(--mono);background:var(--surface2);color:var(--muted);padding:1px 6px;border-radius:3px;margin-left:4px">🎯 obj +${fmtN(objPct)}%</span>`
+          :'';
+        perfHtml=`<div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:3px">${pppBadge}Invertido: ${valIniLabel}${objBadge}</div>`+
                  `<div style="font-size:10px;font-family:var(--mono);color:${color}">${signo}USD ${fmtN(Math.abs(diffUSD))} (${signo}${fmtN(pct)}%)</div>`+
                  rendDiarioHtml;
       } else if(nCompras>1){
@@ -3992,7 +3998,7 @@ const FDEFS={
   gastos_directos:[{k:'desc',l:'Descripción',t:'text'},{k:'medio',l:'Medio',t:'select',o:['Efectivo','Billetera digital','Transferencia']},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'date',l:'Fecha',t:'date'},{k:'note',l:'Nota',t:'text'}],
   inversiones:[{k:'desc',l:'Ticker',t:'text'},{k:'broker',l:'Broker',t:'text'},{k:'tipo',l:'Tipo',t:'select',o:['Fondo','CEDEAR','Acción','Bono','Otro']},{k:'cur',l:'Moneda',t:'select',o:['USD','ARS']},{k:'val',l:'Valor actual',t:'number'},{k:'val_inicial',l:'Valor inicial (invertido)',t:'number'},{k:'num_compras',l:'Nº compras',t:'number'},{k:'fecha_inicio',l:'Fecha inicio',t:'date'},{k:'liq',l:'Liquidez',t:'select',o:['Inmediata','Corto','Medio','Largo']},{k:'note',l:'Nota',t:'text'}],
   efectivo:[{k:'desc',l:'Descripción',t:'text'},{k:'tipo',l:'Tipo',t:'select',o:['Efectivo','Billetera digital','Cuenta bancaria','Otro']},{k:'cur',l:'Moneda',t:'select',o:['USD','ARS']},{k:'amt',l:'Monto',t:'number'},{k:'tasa_anual',l:'Tasa anual % (ej: 26)',t:'number'},{k:'fecha_saldo',l:'Fecha del saldo',t:'date'},{k:'note',l:'Nota',t:'text'}],
-  prestamos_out:[{k:'desc',l:'Deudor',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Cuota',t:'number'},{k:'cuotas',l:'Cuotas rest.',t:'number'},{k:'day',l:'Día cobro',t:'number'},{k:'inicio',l:'Mes inicio',t:'month'},{k:'note',l:'Nota',t:'text'}],
+  prestamos_out:[{k:'desc',l:'Deudor',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Cuota',t:'number'},{k:'cuotas',l:'Cuotas rest.',t:'number'},{k:'day',l:'Día cobro',t:'number'},{k:'inicio',l:'Mes inicio',t:'month'},{k:'obj_pct',l:'Objetivo % (alerta)',t:'number'},{k:'note',l:'Nota',t:'text'}],
   prestamos_in:[{k:'desc',l:'Acreedor',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'capital',l:'Capital',t:'number'},{k:'fecha_inicio',l:'Fecha inicio',t:'date'},{k:'tasa_anual',l:'Tasa anual %',t:'number'},{k:'fecha_vencimiento',l:'Fecha vencimiento',t:'date'},{k:'note',l:'Nota',t:'text'}],
   da_fijos:[{k:'desc',l:'Descripción',t:'text'},{k:'tarjeta',l:'Tarjeta',t:'text'},{k:'cur',l:'Moneda',t:'select',o:['ARS','USD']},{k:'amt',l:'Monto',t:'number'},{k:'cuotas_total',l:'Cuotas totales',t:'number'},{k:'inicio',l:'Mes inicio',t:'month'},{k:'note',l:'Nota',t:'text'}],
 };
